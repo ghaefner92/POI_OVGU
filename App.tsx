@@ -27,6 +27,18 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
+// Component to force map resize after container height is settled
+const MapResizer = () => {
+  const map = useMap();
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      map.invalidateSize();
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [map]);
+  return null;
+};
+
 const createMarkerIcon = (color: string, isSelected: boolean = false) => L.divIcon({
   html: `
     <div class="relative flex items-center justify-center">
@@ -258,7 +270,6 @@ export default function App() {
   };
 
   const addPoiFromOverpass = (op: any) => {
-    // Evitar duplicados
     if (pois.some(p => p.lat === op.lat && p.lng === op.lng)) {
       const existing = pois.find(p => p.lat === op.lat && p.lng === op.lng);
       if (existing) setEditingPoiId(existing.id);
@@ -278,7 +289,6 @@ export default function App() {
   };
 
   const handleMapClick = async (lat: number, lng: number) => {
-    // Primero revisamos si hay un PDI de Overpass muy cerca (threshold pequeño)
     const opMatch = overpassPois.find(op => Math.abs(op.lat - lat) < 0.00015 && Math.abs(op.lng - lng) < 0.00015);
     if (opMatch) {
       addPoiFromOverpass(opMatch);
@@ -332,8 +342,8 @@ export default function App() {
   const currentEditingPoi = useMemo(() => pois.find(p => p.id === editingPoiId), [pois, editingPoiId]);
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-[#FDFDFD] h-screen overflow-hidden font-sans text-gray-900">
-      <div className="w-full md:w-[400px] flex flex-col border-r border-gray-100 bg-white z-20 overflow-hidden shrink-0 shadow-2xl">
+    <div className="flex flex-col md:flex-row bg-[#FDFDFD] h-full w-full overflow-hidden font-sans text-gray-900 fixed inset-0">
+      <div className="w-full md:w-[400px] h-[45%] md:h-full flex flex-col border-r border-gray-100 bg-white z-20 overflow-hidden shrink-0 shadow-2xl">
         <header className="p-6 border-b bg-white relative z-30">
           <div className="flex items-start justify-between mb-4">
             <div className="flex items-center">
@@ -385,10 +395,10 @@ export default function App() {
         </div>
 
         <footer className="p-6 bg-white border-t border-gray-100 shadow-[0_-10px_20px_rgba(0,0,0,0.02)]">
-          <div className="mb-4">
-            {isTooFew && <p className="text-[10px] text-red-500 font-bold text-center animate-pulse">Add at least {3 - pois.length} more locations</p>}
-            {isTooMany && <p className="text-[10px] text-red-500 font-bold text-center">Please remove some locations (max 6)</p>}
-            {isValidCount && <p className="text-[10px] text-green-600 font-bold text-center">Perfect! Your profile is ready.</p>}
+          <div className="mb-4 text-center">
+            {isTooFew && <p className="text-[10px] text-red-500 font-bold animate-pulse">Add at least {3 - pois.length} more locations</p>}
+            {isTooMany && <p className="text-[10px] text-red-500 font-bold">Please remove some locations (max 6)</p>}
+            {isValidCount && <p className="text-[10px] text-green-600 font-bold">Perfect! Your profile is ready.</p>}
           </div>
           <button 
             onClick={() => setIsFinalized(true)} 
@@ -400,18 +410,19 @@ export default function App() {
         </footer>
       </div>
 
-      <div className="flex-1 relative">
+      <div className="flex-1 h-[55%] md:h-full relative overflow-hidden bg-slate-100">
         <MapContainer center={MAGDEBURG_CENTER} zoom={13} minZoom={10} maxZoom={18} maxBounds={SACHSEN_ANHALT_BOUNDS} style={{ height: '100%', width: '100%' }}>
-          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" keepBuffer={8} />
-          <GeoJSON data={WORLD_MASK_GEOJSON} style={{ fillColor: '#0f172a', fillOpacity: 0.65, stroke: false }} interactive={false} />
-          <GeoJSON data={SACHSEN_ANHALT_GEOJSON} style={{ color: BRAND_MAROON, weight: 4, fillOpacity: 0, opacity: 0.8, dashArray: '5, 10' }} interactive={false} />
+          <MapResizer />
+          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" keepBuffer={12} />
+          <GeoJSON data={WORLD_MASK_GEOJSON} style={{ fillColor: '#0f172a', fillOpacity: 0.6, stroke: false }} interactive={false} />
+          <GeoJSON data={SACHSEN_ANHALT_GEOJSON} style={{ color: BRAND_MAROON, weight: 3, fillOpacity: 0, opacity: 0.6, dashArray: '5, 8' }} interactive={false} />
           
           {overpassPois.map(op => (
             <CircleMarker 
               key={op.id} 
               center={[op.lat, op.lng]} 
-              radius={6} 
-              pathOptions={{ color: BRAND_MAROON, weight: 2, fillOpacity: 0.4, fillColor: BRAND_MAROON }} 
+              radius={7} 
+              pathOptions={{ color: BRAND_MAROON, weight: 2, fillOpacity: 0.45, fillColor: BRAND_MAROON }} 
               eventHandlers={{ 
                 click: (e) => {
                   L.DomEvent.stopPropagation(e);
@@ -449,14 +460,14 @@ export default function App() {
 
         {editingPoiId && (
           <div 
-            className="absolute inset-0 z-[3999] bg-black/5 backdrop-blur-[1px] cursor-pointer" 
+            className="absolute inset-0 z-[3999] bg-black/10 backdrop-blur-[1px] cursor-pointer" 
             onClick={() => setEditingPoiId(null)}
           />
         )}
 
         {editingPoiId && currentEditingPoi && (
-          <div className="absolute inset-0 z-[4000] flex items-end justify-center pointer-events-none p-4 md:p-12">
-            <div className="w-full max-w-2xl bg-white/95 backdrop-blur-3xl rounded-[2.5rem] shadow-4xl pointer-events-auto p-8 border border-white animate-in slide-in-from-bottom-24 duration-500">
+          <div className="absolute inset-x-0 bottom-0 md:inset-0 z-[4000] flex items-end justify-center pointer-events-none p-4 md:p-12">
+            <div className="w-full max-w-2xl bg-white/95 backdrop-blur-3xl rounded-t-[2.5rem] md:rounded-[2.5rem] shadow-4xl pointer-events-auto p-8 border border-white animate-in slide-in-from-bottom-32 duration-500">
               <div className="flex items-center justify-between mb-8">
                 <div className="flex items-center gap-4">
                   <div className="w-14 h-14 bg-[#93132B10] text-3xl flex items-center justify-center rounded-2xl">
@@ -482,7 +493,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="space-y-8 max-h-[40vh] overflow-y-auto custom-scrollbar pr-2">
+              <div className="space-y-8 max-h-[35vh] md:max-h-[40vh] overflow-y-auto custom-scrollbar pr-2">
                 <section>
                   <label className="text-[9px] font-black text-gray-400 uppercase tracking-[0.3em] mb-4 block">{t.transportLabel}</label>
                   <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
@@ -512,9 +523,9 @@ export default function App() {
         )}
 
         {pendingMarkers.length > 0 && (
-          <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-3 bg-white/95 backdrop-blur-xl p-3 rounded-[2rem] shadow-2xl border border-white">
-            <div className="pl-6 pr-4 border-r border-gray-100 py-2"><span className="text-2xl font-black text-[#93132B]">{pendingMarkers.length}</span><span className="ml-2 text-xs font-bold text-gray-400 uppercase tracking-widest">{t.pendingCount}</span></div>
-            <button onClick={confirmSelection} disabled={isProcessing} className="bg-[#93132B] text-white px-8 py-3 rounded-2xl font-bold hover:bg-[#7a0f24] transition-all shadow-lg min-w-[140px]">{isProcessing ? t.processing : t.confirmSelection}</button>
+          <div className="absolute bottom-6 md:bottom-10 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-3 bg-white/95 backdrop-blur-xl p-3 rounded-[2rem] shadow-2xl border border-white max-w-[95%]">
+            <div className="pl-6 pr-4 border-r border-gray-100 py-2 hidden sm:block"><span className="text-2xl font-black text-[#93132B]">{pendingMarkers.length}</span><span className="ml-2 text-xs font-bold text-gray-400 uppercase tracking-widest">{t.pendingCount}</span></div>
+            <button onClick={confirmSelection} disabled={isProcessing} className="bg-[#93132B] text-white px-8 py-3 rounded-2xl font-bold hover:bg-[#7a0f24] transition-all shadow-lg min-w-[140px] whitespace-nowrap">{isProcessing ? t.processing : t.confirmSelection}</button>
             <button onClick={() => setPendingMarkers([])} className="px-6 py-3 rounded-2xl font-bold text-gray-500 hover:bg-gray-100">{t.clearSelection}</button>
           </div>
         )}
@@ -523,14 +534,14 @@ export default function App() {
       {showTutorial && <Tutorial lang={lang} onClose={() => setShowTutorial(false)} />}
       
       {isFinalized && (
-        <div className="fixed inset-0 z-[5000] flex items-center justify-center p-6 bg-[#93132B]/20 backdrop-blur-md">
-          <div className="bg-white rounded-[2.5rem] p-10 max-w-2xl w-full shadow-4xl flex flex-col max-h-[90vh]">
-            <h2 className="text-2xl font-black text-[#1a1a1a] mb-6">{t.finalizeTitle}</h2>
+        <div className="fixed inset-0 z-[5000] flex items-center justify-center p-4 md:p-6 bg-[#93132B]/20 backdrop-blur-md">
+          <div className="bg-white rounded-[2.5rem] p-6 md:p-10 max-w-2xl w-full shadow-4xl flex flex-col max-h-[95vh] md:max-h-[90vh]">
+            <h2 className="text-xl md:text-2xl font-black text-[#1a1a1a] mb-6">{t.finalizeTitle}</h2>
             {!isStored ? (
               <div className="flex-1 flex flex-col overflow-hidden">
                 <div className="flex-1 overflow-y-auto custom-scrollbar space-y-4 mb-8 pr-2">
-                  <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100 whitespace-pre-wrap leading-relaxed text-sm text-gray-600">
-                    {mobilitySummary.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')}
+                  <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100 whitespace-pre-wrap leading-relaxed text-sm text-gray-600 font-medium">
+                    <div dangerouslySetInnerHTML={{ __html: mobilitySummary.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>') }} />
                   </div>
                 </div>
                 <div className="flex gap-4">
