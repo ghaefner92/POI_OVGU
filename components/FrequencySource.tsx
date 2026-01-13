@@ -26,13 +26,15 @@ const FrequencySource: React.FC<FrequencySourceProps> = ({ label, index }) => {
       style={style}
       {...listeners}
       {...attributes}
-      className={`flex flex-col items-center justify-center p-2 bg-white border border-gray-100 rounded-xl shadow-sm cursor-grab active:cursor-grabbing transition-all hover:border-blue-500 hover:shadow-lg ${
-        isDragging ? 'opacity-30 scale-110 z-50 ring-4 ring-blue-500/10' : 'opacity-100'
+      className={`group flex flex-col items-center justify-center p-3 bg-white rounded-3xl cursor-grab active:cursor-grabbing transition-all duration-300 ${
+        isDragging ? 'opacity-30 scale-110 z-50 ring-8 ring-blue-500/05' : 'opacity-100 shadow-[0_4px_12px_rgba(0,0,0,0.03)] border border-slate-50 hover:border-blue-200 hover:shadow-[0_12px_30px_rgba(59,130,246,0.08)] hover:-translate-y-1'
       }`}
       title={label}
     >
-      <span className="text-xl mb-0.5">{icon}</span>
-      <span className="text-[8px] font-black text-gray-400 uppercase tracking-tighter leading-none text-center">
+      <div className="w-10 h-10 rounded-2xl bg-slate-50 flex items-center justify-center text-xl mb-1.5 transition-colors group-hover:bg-blue-50">
+        {icon}
+      </div>
+      <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest text-center px-1">
         {label}
       </span>
     </div>
