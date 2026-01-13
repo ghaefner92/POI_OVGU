@@ -23,6 +23,7 @@ export enum TransportMode {
 export interface POI {
   id: string;
   name: string;
+  category?: string;
   lat: number;
   lng: number;
   transportMode: TransportMode | null;

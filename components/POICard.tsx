@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { POI, Language } from '../types';
-import { TRANSLATIONS, TRANSPORT_ICONS, BRAND_MAROON, FREQUENCY_ICONS } from '../constants';
+import { TRANSLATIONS, TRANSPORT_ICONS, FREQUENCY_ICONS } from '../constants';
 
 interface POICardProps {
   poi: POI;
@@ -13,6 +13,25 @@ interface POICardProps {
   onNameChange: (id: string, name: string) => void;
   onClearTransport: () => void;
 }
+
+const getCategoryIcon = (category?: string): string => {
+  if (!category) return '📍';
+  
+  const mapping: Record<string, string> = {
+    'university': '🏫', 'school': '🏫', 'college': '🎓',
+    'supermarket': '🛒', 'convenience': '🏪', 'mall': '🛍️', 'shop': '🛍️',
+    'cafe': '☕', 'restaurant': '🍴', 'fast_food': '🍔', 'bar': '🍺', 'pub': '🍺',
+    'hospital': '🏥', 'pharmacy': '⚕️', 'dentist': '🦷',
+    'gym': '💪', 'sports_centre': '🏟️', 'stadium': '🏟️',
+    'workplace': '🏢', 'office': '🏢', 'industrial': '🏭',
+    'park': '🌳', 'garden': '🌿', 'forest': '🌲',
+    'library': '📚', 'museum': '🏛️', 'theatre': '🎭',
+    'bus_stop': '🚌', 'tram_stop': '🚃', 'railway_station': '🚆',
+    'home': '🏠', 'apartments': '🏢', 'house': '🏠'
+  };
+
+  return mapping[category] || '📍';
+};
 
 const POICard: React.FC<POICardProps> = ({ 
   poi, 
@@ -41,7 +60,7 @@ const POICard: React.FC<POICardProps> = ({
         <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shrink-0 transition-all ${
           poi.transportMode ? 'bg-white shadow-md' : 'bg-gray-100 text-gray-400'
         }`}>
-          {poi.transportMode ? TRANSPORT_ICONS[poi.transportMode] : '📍'}
+          {poi.transportMode ? TRANSPORT_ICONS[poi.transportMode] : getCategoryIcon(poi.category)}
         </div>
         <div className="flex-1 min-w-0">
           <h3 className="font-bold text-[#1a1a1a] truncate mb-1">
@@ -49,7 +68,7 @@ const POICard: React.FC<POICardProps> = ({
           </h3>
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-2 py-0.5 rounded-md">
-              {poi.transportMode ? t.modes[poi.transportMode] : t.modeMissing}
+              {poi.transportMode ? t.modes[poi.transportMode] : (poi.category || t.modeMissing)}
             </span>
             <span className="text-[10px] font-bold text-blue-500 flex items-center gap-1">
               {FREQUENCY_ICONS[poi.frequencyIndex]} {t.frequencies[poi.frequencyIndex]}

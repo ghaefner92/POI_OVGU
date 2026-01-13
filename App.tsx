@@ -11,7 +11,6 @@ import {
   BRAND_MAROON, 
   SACHSEN_ANHALT_BOUNDS, 
   FREQUENCY_ICONS, 
-  NOMINATIM_VIEWBOX,
   SACHSEN_ANHALT_GEOJSON,
   WORLD_MASK_GEOJSON
 } from './constants';
@@ -48,14 +47,14 @@ const createMarkerIcon = (color: string, isSelected: boolean = false) => L.divIc
   iconAnchor: isSelected ? [32, 64] : [16, 32]
 });
 
-// Defining icons for different POI states
 const selectedIcon = createMarkerIcon(BRAND_MAROON, true);
 const defaultIcon = createMarkerIcon(BRAND_MAROON, false);
 const incompleteIcon = createMarkerIcon("#94a3b8", false);
 
-const MapEvents = ({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) => {
+const MapEvents = ({ onMapClick, isEditing }: { onMapClick: (lat: number, lng: number) => void, isEditing: boolean }) => {
   useMapEvents({
     click(e) { 
+      if (isEditing) return;
       if (SACHSEN_ANHALT_BOUNDS.contains(e.latlng)) {
         onMapClick(e.latlng.lat, e.latlng.lng); 
       }
@@ -83,17 +82,24 @@ const OVGULogo = React.memo(() => (
   </svg>
 ));
 
-const getCategoryIcon = (res: any) => {
-  if (res.source === 'gemini') return '✨';
-  const category = res.class || res.category || (res.tags && res.tags.amenity ? 'amenity' : null);
-  const type = res.type || (res.tags && (res.tags.amenity || res.tags.shop || res.tags.tourism));
-  const mapping: any = {
-    amenity: { cafe: '☕', restaurant: '🍴', pub: '🍺', bar: '🍸', school: '🏫', hospital: '🏥', bank: '🏦', pharmacy: '⚕️' },
-    tourism: { museum: '🏛️', gallery: '🖼️', hotel: '🏨', attraction: '🎡' },
-    shop: { supermarket: '🛒', convenience: '🏪', bakery: '🥐', clothes: '👕' },
-    historic: { castle: '🏰', monument: '🗿' }
+const getCategoryIcon = (res: any): string => {
+  const category = res.category || res.class || (res.tags && (res.tags.amenity || res.tags.shop || res.tags.tourism || res.tags.leisure || res.tags.office));
+  if (!category) return '📍';
+  
+  const mapping: Record<string, string> = {
+    'university': '🏫', 'school': '🏫', 'college': '🎓',
+    'supermarket': '🛒', 'convenience': '🏪', 'mall': '🛍️', 'shop': '🛍️',
+    'cafe': '☕', 'restaurant': '🍴', 'fast_food': '🍔', 'bar': '🍺', 'pub': '🍺',
+    'hospital': '🏥', 'pharmacy': '⚕️', 'dentist': '🦷',
+    'gym': '💪', 'sports_centre': '🏟️', 'stadium': '🏟️',
+    'workplace': '🏢', 'office': '🏢', 'industrial': '🏭',
+    'park': '🌳', 'garden': '🌿', 'forest': '🌲',
+    'library': '📚', 'museum': '🏛️', 'theatre': '🎭',
+    'bus_stop': '🚌', 'tram_stop': '🚃', 'railway_station': '🚆',
+    'home': '🏠', 'apartments': '🏢', 'house': '🏠'
   };
-  return mapping[category || '']?.[type || ''] || '📍';
+
+  return mapping[category] || '📍';
 };
 
 export default function App() {
@@ -105,7 +111,6 @@ export default function App() {
   const [isSearchingOSM, setIsSearchingOSM] = useState(false);
   const [isSearchingAI, setIsSearchingAI] = useState(false);
   const [mapLoaded, setMapLoaded] = useState(false);
-  const [selectingResultId, setSelectingResultId] = useState<string | number | null>(null);
   const [mapCenter, setMapCenter] = useState<[number, number]>(MAGDEBURG_CENTER);
   const [mapZoom, setMapZoom] = useState<number | undefined>(undefined);
   const [isFinalized, setIsFinalized] = useState(false);
@@ -122,7 +127,6 @@ export default function App() {
   
   const t = TRANSLATIONS[lang];
 
-  // Requirements: 3-6 POIs
   const isValidCount = pois.length >= 3 && pois.length <= 6;
   const isTooFew = pois.length < 3;
   const isTooMany = pois.length > 6;
@@ -143,35 +147,56 @@ export default function App() {
   const fetchLocalPois = useCallback(async (bounds: L.LatLngBounds) => {
     setIsFetchingOverpass(true);
     const sw = bounds.getSouthWest(), ne = bounds.getNorthEast();
-    const query = `[out:json][timeout:25];(node["amenity"](${sw.lat},${sw.lng},${ne.lat},${ne.lng});node["shop"](${sw.lat},${sw.lng},${ne.lat},${ne.lng}););out body;`;
-    try {
-      const response = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
-      if (!response.ok) throw new Error("Overpass Error");
-      const text = await response.text();
-      const data = JSON.parse(text); // Guard against non-JSON responses
-      const mapped = (data.elements || []).filter((e: any) => e.tags && e.tags.name).map((e: any) => ({
-        id: e.id, name: e.tags.name, lat: e.lat, lng: e.lon, tags: e.tags
-      }));
-      setOverpassPois(mapped);
-    } catch (e) { console.error("POI Fetch Error:", e); } finally { setIsFetchingOverpass(false); }
+    const query = `[out:json][timeout:15];(node["amenity"](${sw.lat},${sw.lng},${ne.lat},${ne.lng});node["shop"](${sw.lat},${sw.lng},${ne.lat},${ne.lng});node["leisure"](${sw.lat},${sw.lng},${ne.lat},${ne.lng});node["tourism"](${sw.lat},${sw.lng},${ne.lat},${ne.lng}););out body 60;`;
+    
+    const endpoints = [
+      'https://overpass-api.de/api/interpreter',
+      'https://overpass.kumi.systems/api/interpreter'
+    ];
+
+    for (const endpoint of endpoints) {
+      try {
+        const response = await fetch(`${endpoint}?data=${encodeURIComponent(query)}`, {
+          signal: AbortSignal.timeout(8000)
+        });
+        if (!response.ok) continue;
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) continue;
+        const data = await response.json();
+        const mapped = (data.elements || [])
+          .filter((e: any) => e.tags && e.tags.name)
+          .map((e: any) => ({
+            id: e.id,
+            name: e.tags.name,
+            category: e.tags.amenity || e.tags.shop || e.tags.leisure || e.tags.tourism || 'POI',
+            lat: e.lat,
+            lng: e.lon,
+            tags: e.tags
+          }));
+        setOverpassPois(mapped);
+        break;
+      } catch (e) {
+        console.warn(`Mirror ${endpoint} failed, trying next...`);
+      }
+    }
+    setIsFetchingOverpass(false);
   }, []);
 
   const performSearch = useCallback(async (query: string) => {
     const qRaw = query.trim().toLowerCase();
     if (qRaw.length < 3) return;
     if (searchCache.current.has(qRaw)) { setSearchResults(searchCache.current.get(qRaw) || []); return; }
-    
     if (abortControllerRef.current) abortControllerRef.current.abort();
     abortControllerRef.current = new AbortController();
-    
     setIsSearchingOSM(true); setIsSearchingAI(true);
-    const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(qRaw + ", Magdeburg")}&limit=10&lat=${MAGDEBURG_CENTER[0]}&lon=${MAGDEBURG_CENTER[1]}`;
     
+    const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(qRaw + ", Magdeburg")}&limit=12&lat=${MAGDEBURG_CENTER[0]}&lon=${MAGDEBURG_CENTER[1]}`;
     fetch(photonUrl, { signal: abortControllerRef.current.signal })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(data => {
         const results = (data.features || []).map((f: any) => ({
           display_name: f.properties.name || f.properties.street || "Place",
+          category: f.properties.osm_value || f.properties.osm_key,
           lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0],
           place_id: f.properties.osm_id
         }));
@@ -185,7 +210,7 @@ export default function App() {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const res = await ai.models.generateContent({
           model: "gemini-2.5-flash",
-          contents: `Top 3 popular landmarks or frequent travel destinations for "${qRaw}" in Magdeburg, Germany. Names only.`,
+          contents: `I need 3 real specific locations in Magdeburg related to "${qRaw}". Names must be exact.`,
           config: { tools: [{ googleMaps: {} }], toolConfig: { retrievalConfig: { latLng: { latitude: MAGDEBURG_CENTER[0], longitude: MAGDEBURG_CENTER[1] } } } }
         });
         const chunks = res.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
@@ -202,7 +227,11 @@ export default function App() {
           const valid = geocodes.filter(Boolean);
           if (valid.length > 0) setSearchResults(prev => [...valid, ...prev]);
         }
-      } catch (e) { console.error("AI Search Error:", e); } finally { setIsSearchingAI(false); }
+      } catch (e) {
+        console.warn("AI search unavailable or rate limited");
+      } finally {
+        setIsSearchingAI(false);
+      }
     })();
   }, []);
 
@@ -213,19 +242,46 @@ export default function App() {
 
   const selectSearchResult = (result: any) => {
     const lat = parseFloat(result.lat), lng = parseFloat(result.lon);
-    const newPoi: POI = { id: `poi-${Date.now()}`, name: result.display_name.split(',')[0], lat, lng, transportMode: null, frequencyIndex: 0 };
+    const newPoi: POI = { 
+      id: `poi-${Date.now()}`, 
+      name: result.display_name.split(',')[0], 
+      category: result.category || 'POI',
+      lat, 
+      lng, 
+      transportMode: null, 
+      frequencyIndex: 0 
+    };
     setPois(prev => [...prev, newPoi]);
     setEditingPoiId(newPoi.id);
     setMapCenter([lat, lng]); setMapZoom(17);
     setSearchResults([]); setSearchQuery('');
   };
 
+  const addPoiFromOverpass = (op: any) => {
+    // Evitar duplicados
+    if (pois.some(p => p.lat === op.lat && p.lng === op.lng)) {
+      const existing = pois.find(p => p.lat === op.lat && p.lng === op.lng);
+      if (existing) setEditingPoiId(existing.id);
+      return;
+    }
+    const newPoi: POI = { 
+      id: `poi-op-${op.id}-${Date.now()}`, 
+      name: op.name, 
+      category: op.category,
+      lat: op.lat, 
+      lng: op.lng, 
+      transportMode: null, 
+      frequencyIndex: 0 
+    };
+    setPois(prev => [...prev, newPoi]);
+    setEditingPoiId(newPoi.id);
+  };
+
   const handleMapClick = async (lat: number, lng: number) => {
-    const opMatch = overpassPois.find(op => Math.abs(op.lat - lat) < 0.0003 && Math.abs(op.lng - lng) < 0.0003);
+    // Primero revisamos si hay un PDI de Overpass muy cerca (threshold pequeño)
+    const opMatch = overpassPois.find(op => Math.abs(op.lat - lat) < 0.00015 && Math.abs(op.lng - lng) < 0.00015);
     if (opMatch) {
-      const newPoi: POI = { id: `poi-op-${opMatch.id}`, name: opMatch.name, lat: opMatch.lat, lng: opMatch.lng, transportMode: null, frequencyIndex: 0 };
-      setPois(prev => [...prev, newPoi]);
-      setEditingPoiId(newPoi.id);
+      addPoiFromOverpass(opMatch);
       return;
     }
     setPendingMarkers(prev => [...prev, { lat, lng }]);
@@ -235,11 +291,21 @@ export default function App() {
     setIsProcessing(true);
     const newPois = await Promise.all(pendingMarkers.map(async (m, i) => {
       try {
-        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${m.lat}&lon=${m.lng}&zoom=18`);
+        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${m.lat}&lon=${m.lng}&zoom=18&addressdetails=1`);
         if (!r.ok) throw new Error();
         const d = await r.json();
-        const name = d.address?.amenity || d.address?.shop || d.address?.tourism || d.address?.road || "Location";
-        return { id: `poi-${Date.now()}-${i}`, name, lat: m.lat, lng: m.lng, transportMode: null, frequencyIndex: 0 };
+        const addr = d.address || {};
+        const name = addr.amenity || addr.shop || addr.tourism || addr.leisure || addr.office || addr.building || addr.road || "Location";
+        const category = addr.amenity || addr.shop || addr.tourism || addr.leisure || addr.office || "POI";
+        return { 
+          id: `poi-${Date.now()}-${i}`, 
+          name, 
+          category,
+          lat: m.lat, 
+          lng: m.lng, 
+          transportMode: null, 
+          frequencyIndex: 0 
+        };
       } catch {
         return { id: `poi-${Date.now()}-${i}`, name: "Location", lat: m.lat, lng: m.lng, transportMode: null, frequencyIndex: 0 };
       }
@@ -262,6 +328,8 @@ export default function App() {
       setIsStored(true);
     }, 1500);
   };
+
+  const currentEditingPoi = useMemo(() => pois.find(p => p.id === editingPoiId), [pois, editingPoiId]);
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-[#FDFDFD] h-screen overflow-hidden font-sans text-gray-900">
@@ -287,7 +355,7 @@ export default function App() {
             <div className="absolute top-full left-0 right-0 mt-2 mx-6 bg-white border border-gray-100 rounded-2xl shadow-2xl overflow-hidden z-50 max-h-[300px] overflow-y-auto custom-scrollbar">
               {searchResults.map((res, i) => (
                 <button key={i} onClick={() => selectSearchResult(res)} className="w-full text-left px-5 py-3 text-sm border-b hover:bg-gray-50 flex items-center gap-3">
-                  <span className="text-lg">{getCategoryIcon(res)}</span>
+                  <span className="text-lg">{getCategoryIcon({ category: res.category })}</span>
                   <div className="flex-1 truncate"><span className="font-bold">{res.display_name.split(',')[0]}</span></div>
                 </button>
               ))}
@@ -339,16 +407,38 @@ export default function App() {
           <GeoJSON data={SACHSEN_ANHALT_GEOJSON} style={{ color: BRAND_MAROON, weight: 4, fillOpacity: 0, opacity: 0.8, dashArray: '5, 10' }} interactive={false} />
           
           {overpassPois.map(op => (
-            <CircleMarker key={op.id} center={[op.lat, op.lng]} radius={4} pathOptions={{ color: BRAND_MAROON, weight: 1, fillOpacity: 0.2 }} eventHandlers={{ click: () => handleMapClick(op.lat, op.lng) }}>
+            <CircleMarker 
+              key={op.id} 
+              center={[op.lat, op.lng]} 
+              radius={6} 
+              pathOptions={{ color: BRAND_MAROON, weight: 2, fillOpacity: 0.4, fillColor: BRAND_MAROON }} 
+              eventHandlers={{ 
+                click: (e) => {
+                  L.DomEvent.stopPropagation(e);
+                  addPoiFromOverpass(op);
+                }
+              }}
+            >
               <Tooltip direction="top"><span>{op.name}</span></Tooltip>
             </CircleMarker>
           ))}
           
-          <MapEvents onMapClick={handleMapClick} />
+          <MapEvents onMapClick={handleMapClick} isEditing={!!editingPoiId} />
           <MapController center={mapCenter} zoom={mapZoom} onReady={() => setMapLoaded(true)} />
           
           {pois.map(poi => (
-            <Marker key={poi.id} position={[poi.lat, poi.lng]} icon={editingPoiId === poi.id ? selectedIcon : (poi.transportMode ? defaultIcon : incompleteIcon)} eventHandlers={{ click: () => { setEditingPoiId(poi.id); setMapCenter([poi.lat, poi.lng]); } }}>
+            <Marker 
+              key={poi.id} 
+              position={[poi.lat, poi.lng]} 
+              icon={editingPoiId === poi.id ? selectedIcon : (poi.transportMode ? defaultIcon : incompleteIcon)} 
+              eventHandlers={{ 
+                click: (e) => {
+                  L.DomEvent.stopPropagation(e);
+                  setEditingPoiId(poi.id); 
+                  setMapCenter([poi.lat, poi.lng]);
+                } 
+              }}
+            >
               <Tooltip direction="top" permanent={editingPoiId === poi.id}><span>{poi.name}</span></Tooltip>
             </Marker>
           ))}
@@ -357,28 +447,47 @@ export default function App() {
           <OverpassFetcher zoom={mapZoom || 13} onFetch={fetchLocalPois} />
         </MapContainer>
 
-        {/* QUICK ACTION HUD MENU */}
         {editingPoiId && (
+          <div 
+            className="absolute inset-0 z-[3999] bg-black/5 backdrop-blur-[1px] cursor-pointer" 
+            onClick={() => setEditingPoiId(null)}
+          />
+        )}
+
+        {editingPoiId && currentEditingPoi && (
           <div className="absolute inset-0 z-[4000] flex items-end justify-center pointer-events-none p-4 md:p-12">
             <div className="w-full max-w-2xl bg-white/95 backdrop-blur-3xl rounded-[2.5rem] shadow-4xl pointer-events-auto p-8 border border-white animate-in slide-in-from-bottom-24 duration-500">
               <div className="flex items-center justify-between mb-8">
-                <div>
-                  <h3 className="text-xl font-black text-gray-900 leading-tight">{pois.find(p => p.id === editingPoiId)?.name}</h3>
-                  <p className="text-[10px] font-black text-[#93132B] uppercase tracking-widest mt-1">
-                    {pois.find(p => p.id === editingPoiId)?.transportMode ? t.modes[pois.find(p => p.id === editingPoiId)!.transportMode!] : t.modeMissing}
-                  </p>
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 bg-[#93132B10] text-3xl flex items-center justify-center rounded-2xl">
+                    {getCategoryIcon({ category: currentEditingPoi.category })}
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black text-gray-900 leading-tight">{currentEditingPoi.name}</h3>
+                    <p className="text-[10px] font-black text-[#93132B] uppercase tracking-widest mt-1">
+                      {currentEditingPoi.transportMode ? t.modes[currentEditingPoi.transportMode] : t.modeMissing}
+                    </p>
+                  </div>
                 </div>
-                <button onClick={() => setEditingPoiId(null)} className="w-12 h-12 bg-green-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-green-600 transition-colors">
-                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M5 13l4 4L19 7" /></svg>
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={() => { setPois(p => p.filter(x => x.id !== editingPoiId)); setEditingPoiId(null); }}
+                    className="w-12 h-12 bg-red-50 text-red-500 rounded-full flex items-center justify-center shadow-sm hover:bg-red-100 transition-colors"
+                  >
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  </button>
+                  <button onClick={() => setEditingPoiId(null)} className="w-12 h-12 bg-[#93132B] text-white rounded-full flex items-center justify-center shadow-lg hover:bg-[#7a0f24] transition-colors">
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M5 13l4 4L19 7" /></svg>
+                  </button>
+                </div>
               </div>
 
-              <div className="space-y-8 max-h-[50vh] overflow-y-auto custom-scrollbar pr-2">
+              <div className="space-y-8 max-h-[40vh] overflow-y-auto custom-scrollbar pr-2">
                 <section>
                   <label className="text-[9px] font-black text-gray-400 uppercase tracking-[0.3em] mb-4 block">{t.transportLabel}</label>
                   <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
                     {Object.values(TransportMode).map(mode => (
-                      <button key={mode} onClick={() => updateActivePoi({ transportMode: mode })} className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all border-2 ${pois.find(p => p.id === editingPoiId)?.transportMode === mode ? 'border-[#93132B] bg-[#93132B08] scale-105' : 'border-gray-50 bg-white hover:border-gray-200'}`}>
+                      <button key={mode} onClick={() => updateActivePoi({ transportMode: mode })} className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all border-2 ${currentEditingPoi.transportMode === mode ? 'border-[#93132B] bg-[#93132B08] scale-105' : 'border-gray-50 bg-white hover:border-gray-200'}`}>
                         <span className="text-2xl mb-1">{TRANSPORT_ICONS[mode]}</span>
                         <span className="text-[7px] font-black text-gray-400 uppercase truncate w-full text-center leading-none">{t.modes[mode].split(' ')[0]}</span>
                       </button>
@@ -390,7 +499,7 @@ export default function App() {
                   <label className="text-[9px] font-black text-gray-400 uppercase tracking-[0.3em] mb-4 block">{t.frequencyLabel}</label>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {t.frequencies.map((label, idx) => (
-                      <button key={idx} onClick={() => updateActivePoi({ frequencyIndex: idx })} className={`flex items-center gap-2 p-3 rounded-xl transition-all border-2 ${pois.find(p => p.id === editingPoiId)?.frequencyIndex === idx ? 'border-blue-500 bg-blue-50/30 scale-105' : 'border-gray-50 bg-white hover:border-gray-200'}`}>
+                      <button key={idx} onClick={() => updateActivePoi({ frequencyIndex: idx })} className={`flex items-center gap-2 p-3 rounded-xl transition-all border-2 ${currentEditingPoi.frequencyIndex === idx ? 'border-blue-500 bg-blue-50/30 scale-105' : 'border-gray-50 bg-white hover:border-gray-200'}`}>
                         <span className="text-xl">{FREQUENCY_ICONS[idx]}</span>
                         <span className="text-[8px] font-black text-gray-500 uppercase leading-tight text-left">{label}</span>
                       </button>
@@ -451,6 +560,17 @@ export default function App() {
 const OverpassFetcher = ({ zoom, onFetch }: { zoom: number, onFetch: (bounds: L.LatLngBounds) => void }) => {
   const map = useMap();
   const lastFetch = useRef(0);
-  useMapEvents({ moveend: () => { if (map.getZoom() >= 15 && Date.now() - lastFetch.current > 3000) { onFetch(map.getBounds()); lastFetch.current = Date.now(); } } });
+  const isFetching = useRef(false);
+
+  useMapEvents({ 
+    moveend: () => { 
+      if (map.getZoom() >= 15 && Date.now() - lastFetch.current > 4000 && !isFetching.current) {
+        isFetching.current = true;
+        onFetch(map.getBounds()); 
+        lastFetch.current = Date.now();
+        setTimeout(() => { isFetching.current = false; }, 2000);
+      } 
+    } 
+  });
   return null;
 }

@@ -97,33 +97,33 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     frequencies: ["Occasionally", "2-3 days/week", "4-5 days/week", "Daily"],
     tutorialNext: "Next",
     tutorialClose: "Skip",
-    tutorialStart: "Start Now",
-    tutorialFinish: "Ready!",
+    tutorialStart: "Let's Go",
+    tutorialFinish: "Finish Tutorial",
     tutorialSteps: [
       {
-        title: "Your Weekly Goal",
-        description: "Mark between 3 and 6 locations that define your normal week. Think of: Home, University (Campus), Workplace, Gym, or your favorite Grocery Store.",
+        title: "The Mission: 3 to 6 Locations",
+        description: "Identify exactly 3 to 6 places you visit in a typical week. Think about your Home, the University Campus, your Office, or where you buy groceries like 'Edeka' or 'Rewe'.",
         icon: "🎯"
       },
       {
-        title: "Locate & Mark",
-        description: "Search for a specific name or click directly on the map. You can mark multiple points at once and then confirm them.",
+        title: "Interact with the Map",
+        description: "Click anywhere on the map to mark a new spot. Notice the small maroon dots? Those are recognized locations! Click them to automatically snap to a real PDI like 'University Library'.",
         icon: "📍"
       },
       {
-        title: "Quick Habit Slot",
-        description: "Once a location is added, tap its marker or card. A 'Quick Action' menu will pop up to let you set your Transport Mode and Frequency in seconds.",
+        title: "Power Search",
+        description: "Need precision? Use the search bar for specific names like 'Studentenwerk' or 'Nordpark'. We'll even give you smart AI suggestions for places you might like!",
+        icon: "🔍"
+      },
+      {
+        title: "Define Your Habits",
+        description: "Tap any added location to set your primary transport mode (e.g., Tram, Bike) and how often you visit. This data is the core of our infrastructure research.",
         icon: "⚡"
       },
       {
-        title: "Be Precise",
-        description: "For each place, choose the mode you use most often. Does it change? Pick the one you used last week!",
-        icon: "🚲"
-      },
-      {
-        title: "Finish the Task",
-        description: "Once you have at least 3 locations fully detailed, hit the 'Submit' button. Quality data helps us build a better Magdeburg.",
-        icon: "📤"
+        title: "Contribute to Magdeburg",
+        description: "Once 3-6 spots are fully detailed, click 'Submit'. Your input directly impacts future campus and city planning. Thank you for participating!",
+        icon: "🏗️"
       }
     ]
   },
@@ -178,33 +178,33 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     frequencies: ["Gelegentlich", "2-3 Tage/Woche", "4-5 Tage/Woche", "Täglich"],
     tutorialNext: "Weiter",
     tutorialClose: "Überspringen",
-    tutorialStart: "Jetzt starten",
-    tutorialFinish: "Bereit!",
+    tutorialStart: "Los geht's",
+    tutorialFinish: "Tutorial beenden",
     tutorialSteps: [
       {
-        title: "Ihr Wochen-Ziel",
-        description: "Markieren Sie 3 bis 6 Orte Ihrer normalen Woche. Denken Sie an: Wohnung, Universität, Arbeitsplatz, Fitnessstudio oder Ihren Supermarkt.",
+        title: "Ihre Mission: 3 bis 6 Orte",
+        description: "Markieren Sie 3 bis 6 Orte Ihrer normalen Woche. Denken Sie an: Wohnung, Uni-Campus, Arbeitsplatz oder Supermärkte wie 'Edeka' oder 'Rewe'.",
         icon: "🎯"
       },
       {
-        title: "Suchen & Markieren",
-        description: "Suchen Sie nach Namen oder klicken Sie direkt in die Karte. Sie können mehrere Punkte gleichzeitig markieren und dann bestätigen.",
+        title: "Karten-Interaktion",
+        description: "Klicken Sie auf die Karte, um Orte zu markieren. Die kleinen weinroten Punkte sind erkannte Orte! Klicken Sie darauf, um z.B. die 'UB' direkt zu übernehmen.",
         icon: "📍"
       },
       {
-        title: "Schnell-Auswahl",
-        description: "Tippen Sie auf einen Marker oder eine Karte. Ein HUD-Menü erscheint, in dem Sie Modus und Häufigkeit sofort festlegen können.",
+        title: "Intelligente Suche",
+        description: "Nutzen Sie die Suche für Orte wie 'Studentenwerk' oder 'Nordpark'. Wir nutzen KI, um Ihnen passende Vorschläge in Magdeburg zu machen!",
+        icon: "🔍"
+      },
+      {
+        title: "Gewohnheiten festlegen",
+        description: "Tippen Sie auf einen Marker, um Modus (z.B. Bahn, Rad) und Häufigkeit zu wählen. Dies ist der wichtigste Teil für unsere Forschung.",
         icon: "⚡"
       },
       {
-        title: "Präzision zählt",
-        description: "Wählen Sie für jeden Ort das Verkehrsmittel, das Sie am häufigsten nutzen. Nutzen Sie das, was Sie letzte Woche verwendet haben!",
-        icon: "🚲"
-      },
-      {
-        title: "Abschließen",
-        description: "Sobald Sie mindestens 3 Orte mit Details versehen haben, klicken Sie auf 'Absenden'. Ihre Daten helfen Magdeburg!",
-        icon: "📤"
+        title: "Beitrag für Magdeburg",
+        description: "Wenn 3-6 Orte fertig sind, klicken Sie auf 'Absenden'. Ihre Daten beeinflussen direkt die zukünftige Stadtplanung. Vielen Dank!",
+        icon: "🏗️"
       }
     ]
   }
