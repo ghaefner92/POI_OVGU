@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { 
   DndContext, 
@@ -8,16 +7,27 @@ import {
   useSensors, 
   DragEndEvent,
 } from '@dnd-kit/core';
-import { MapContainer, TileLayer, Marker, Tooltip, useMapEvents, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Tooltip, useMapEvents, useMap, GeoJSON } from 'react-leaflet';
 import L from 'leaflet';
 import { GoogleGenAI } from "@google/genai";
-import { Language, TransportMode, POI, PendingMarker, MapLayer } from './types';
-import { MAGDEBURG_CENTER, TRANSLATIONS, TRANSPORT_ICONS, BRAND_MAROON, SACHSEN_ANHALT_BOUNDS, LAYER_ICONS, FREQUENCY_ICONS, NOMINATIM_VIEWBOX } from './constants';
+import { Language, TransportMode, POI } from './types';
+import { MAGDEBURG_CENTER, TRANSLATIONS, TRANSPORT_ICONS, BRAND_MAROON, FLUORESCENT_CYAN, SACHSEN_ANHALT_BOUNDS, NOMINATIM_VIEWBOX, URBAN_TILE_URL, TILE_OPTIONS } from './constants';
 import LanguageSwitch from './components/LanguageSwitch';
 import TransportSource from './components/TransportSource';
-import FrequencySource from './components/FrequencySource';
 import POICard from './components/POICard';
 import Tutorial from './components/Tutorial';
+
+// Custom CSS for subtle pulsing
+const pulseStyles = `
+  @keyframes marker-soft-pulse {
+    0% { transform: scale(1); opacity: 0.8; }
+    50% { transform: scale(1.6); opacity: 0.3; }
+    100% { transform: scale(2.2); opacity: 0; }
+  }
+`;
+
+// Helper for generating unique IDs
+const generateId = () => `poi-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
 // Fix Leaflet marker icon issues
 // @ts-ignore
@@ -28,29 +38,49 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 });
 
-const createMarkerIcon = (color: string, isSelected: boolean = false) => L.divIcon({
-  html: `
-    <div class="relative flex items-center justify-center">
-      ${isSelected ? '<div class="absolute w-12 h-12 bg-red-400 rounded-full animate-ping opacity-40"></div>' : ''}
-      <div class="${isSelected ? 'scale-125 transition-transform duration-300' : ''}" style="filter: drop-shadow(0 4px 10px rgba(0,0,0,0.3))">
-        <svg width="${isSelected ? '48' : '32'}" height="${isSelected ? '48' : '32'}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 21C16 17.5 19 14.4087 19 10.5C19 6.63401 15.866 3.5 12 3.5C8.13401 3.5 5 6.63401 5 10.5C5 14.4087 8 17.5 12 21Z" fill="${color}" stroke="white" stroke-width="2"/>
-          <circle cx="12" cy="10.5" r="3" fill="white"/>
-        </svg>
-      </div>
-    </div>`,
+const createMarkerIcon = (color: string, isSelected: boolean = false) => {
+  // Fix: Tailwind JIT needs literal class names to be present in the source code
+  const pulseColorClass = color === BRAND_MAROON ? 'bg-[#93132B]' : 'bg-red-500';
+  
+  return L.divIcon({
+    html: `
+      <div class="relative flex items-center justify-center">
+        ${isSelected ? `
+          <div class="absolute w-12 h-12 ${pulseColorClass} rounded-full opacity-0" 
+               style="animation: marker-soft-pulse 2s infinite ease-out;"></div>
+          <div class="absolute w-12 h-12 ${pulseColorClass} rounded-full opacity-0" 
+               style="animation: marker-soft-pulse 2s infinite ease-out 1s;"></div>
+        ` : ''}
+        <div class="${isSelected ? 'scale-125 transition-all duration-500 ease-out' : 'transition-all duration-300'}" 
+             style="filter: drop-shadow(0 ${isSelected ? '12px 20px' : '4px 8px'} rgba(0,0,0,0.2))">
+          <svg width="${isSelected ? '48' : '36'}" height="${isSelected ? '48' : '36'}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 21C16 17.5 19 14.4087 19 10.5C19 6.63401 15.866 3.5 12 3.5C8.13401 3.5 5 6.63401 5 10.5C5 14.4087 8 17.5 12 21Z" fill="${color}" stroke="white" stroke-width="2.5"/>
+            <circle cx="12" cy="10.5" r="3.5" fill="white"/>
+          </svg>
+        </div>
+      </div>`,
+    className: '',
+    iconSize: isSelected ? [48, 48] : [36, 36],
+    iconAnchor: isSelected ? [24, 48] : [18, 36]
+  });
+};
+
+const createBackgroundPoiIcon = () => L.divIcon({
+  html: `<div class="w-3 h-3 bg-slate-300/40 rounded-full border border-white shadow-sm transition-all hover:scale-150 hover:bg-[#93132B60] hover:opacity-100 group"></div>`,
   className: '',
-  iconSize: isSelected ? [48, 48] : [32, 32],
-  iconAnchor: isSelected ? [24, 48] : [16, 32]
+  iconSize: [12, 12],
+  iconAnchor: [6, 6]
 });
 
 const defaultIcon = createMarkerIcon(BRAND_MAROON);
 const selectedIcon = createMarkerIcon("#FF3B30", true); 
-const incompleteIcon = createMarkerIcon("#94a3b8");
+const incompleteIcon = createMarkerIcon("#CBD5E1"); 
+const backgroundPoiIcon = createBackgroundPoiIcon();
 
 const MapEvents = ({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) => {
   useMapEvents({
     click(e) { 
+      // Ensure we are within bounds before allowing a click
       if (SACHSEN_ANHALT_BOUNDS.contains(e.latlng)) {
         onMapClick(e.latlng.lat, e.latlng.lng); 
       }
@@ -63,32 +93,27 @@ const MapController = ({ center, zoom }: { center: [number, number], zoom?: numb
   const map = useMap();
   useEffect(() => {
     if (zoom) {
-      map.flyTo(center, zoom, {
-        animate: true,
-        duration: 1.5,
-        easeLinearity: 0.25
-      });
+      map.flyTo(center, zoom, { animate: true, duration: 1.2, easeLinearity: 0.25 });
     } else {
-      map.panTo(center, { animate: true, duration: 0.8 });
+      map.panTo(center, { animate: true, duration: 0.6 });
     }
   }, [center, zoom, map]);
   return null;
 };
 
-const OVGULogo = React.memo(() => (
-  <svg width="36" height="36" viewBox="0 0 100 100" className="mr-3 filter drop-shadow-sm">
-    <rect width="100" height="100" rx="14" fill={BRAND_MAROON} />
-    <path d="M30 30 L70 30 L70 45 L30 45 Z" fill="white" />
-    <path d="M30 55 L70 55 L70 70 L30 70 Z" fill="white" />
-    <circle cx="50" cy="50" r="10" fill={BRAND_MAROON} stroke="white" strokeWidth="4" />
-  </svg>
+const AppLogo = React.memo(() => (
+  <div className="flex items-center justify-center w-10 h-10 bg-[#93132B] rounded-xl shadow-lg shadow-[#93132B20] mr-3 shrink-0">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
+  </div>
 ));
 
 const getCategoryIcon = (res: any) => {
   if (res.source === 'gemini') return '✨';
   const category = res.class;
   const type = res.type;
-  
   if (category === 'amenity') {
     if (type === 'cafe' || type === 'restaurant') return '🍴';
     if (type === 'school' || type === 'university') return '🏫';
@@ -97,122 +122,131 @@ const getCategoryIcon = (res: any) => {
   }
   if (category === 'leisure') return '🌳';
   if (category === 'shop') return '🛍️';
-  if (category === 'highway') return '🛣️';
-  if (category === 'tourism') return '🏛️';
-  if (category === 'railway') return '🚉';
-  if (category === 'building') return '🏠';
   return '📍';
 };
 
+interface CityPoi {
+  name: string;
+  lat: number;
+  lng: number;
+}
+
 export default function App() {
   const [lang, setLang] = useState<Language>(Language.DE);
-  const [mapLayer, setMapLayer] = useState<MapLayer>(MapLayer.STANDARD);
   const [pois, setPois] = useState<POI[]>([]);
-  const [pendingMarkers, setPendingMarkers] = useState<PendingMarker[]>([]);
-  const [activeTransport, setActiveTransport] = useState<TransportMode | null>(null);
-  const [activeFrequencyIndex, setActiveFrequencyIndex] = useState<number | null>(null);
+  const [cityPois, setCityPois] = useState<CityPoi[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [mapCenter, setMapCenter] = useState<[number, number]>(MAGDEBURG_CENTER);
   const [mapZoom, setMapZoom] = useState<number | undefined>(undefined);
   const [isFinalized, setIsFinalized] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [isStoring, setIsStoring] = useState(false);
-  const [isStored, setIsStored] = useState(false);
-  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [editingPoiId, setEditingPoiId] = useState<string | null>(null);
-  const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | null>(null);
-  const [showLayerPicker, setShowLayerPicker] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [cityBoundary, setCityBoundary] = useState<any>(null);
   
-  const searchContainerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const searchCache = useRef<Map<string, any[]>>(new Map());
-  
   const t = TRANSLATIONS[lang];
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }));
 
-  useEffect(() => {
-    const hasSeenTutorial = localStorage.getItem('ovgu_mobility_tutorial_seen');
-    if (!hasSeenTutorial) {
-      setShowTutorial(true);
+  const completedPoisCount = useMemo(() => pois.filter(p => p.transportMode !== null).length, [pois]);
+  const isValidCount = pois.length >= 3 && pois.length <= 6;
+  const canSave = isValidCount && (completedPoisCount === pois.length) && pois.length > 0;
+  const completionPercentage = pois.length > 0 ? (completedPoisCount / Math.max(pois.length, 3)) * 100 : 0;
+
+  // Optimized Overpass API fetcher with robust error handling
+  const fetchOpenSourcePois = useCallback(async () => {
+    try {
+      const overpassQuery = `[out:json][timeout:25];(node["amenity"~"restaurant|cafe|bar|fast_food|pub"](52.03,11.45,52.23,11.78);node["shop"](52.03,11.45,52.23,11.78);node["tourism"~"hotel|museum|attraction"](52.03,11.45,52.23,11.78);node["leisure"~"park|playground"](52.03,11.45,52.23,11.78););out body 200;`;
+      const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(overpassQuery)}`;
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`Overpass returned status ${response.status}`);
+      }
+
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        // This is where the XML/HTML error page usually comes from
+        const text = await response.text();
+        console.warn("Overpass API returned non-JSON response. Likely server overload or error. Response starting with:", text.substring(0, 50));
+        return; 
+      }
+
+      const data = await response.json();
+      
+      if (data && data.elements) {
+        const extracted = data.elements
+          .filter((el: any) => el.tags && (el.tags.name || el.tags.operator))
+          .map((el: any) => ({
+            name: el.tags.name || el.tags.operator,
+            lat: el.lat,
+            lng: el.lon
+          }));
+        setCityPois(extracted);
+      }
+    } catch (err) { 
+      console.error("Failed to fetch Overpass data:", err); 
     }
   }, []);
 
-  const handleCloseTutorial = () => {
-    setShowTutorial(false);
-    localStorage.setItem('ovgu_mobility_tutorial_seen', 'true');
-  };
+  useEffect(() => {
+    const styleTag = document.createElement('style');
+    styleTag.textContent = pulseStyles;
+    document.head.appendChild(styleTag);
+
+    const hasSeenTutorial = localStorage.getItem('ovgu_mobility_tutorial_seen');
+    if (!hasSeenTutorial) setShowTutorial(true);
+    
+    fetchOpenSourcePois();
+    
+    const fetchBoundary = async () => {
+      try {
+        const res = await fetch('https://nominatim.openstreetmap.org/search?q=Magdeburg&format=json&polygon_geojson=1&limit=1');
+        const data = await res.json();
+        if (data && data[0] && data[0].geojson) setCityBoundary(data[0].geojson);
+      } catch (err) { console.error("Failed to fetch city boundary", err); }
+    };
+    fetchBoundary();
+  }, [fetchOpenSourcePois]);
+
+  const handleOpenNewTab = () => { window.open(window.location.href, '_blank'); };
 
   const performSearch = useCallback(async (query: string) => {
     const qRaw = query.trim();
     const qLower = qRaw.toLowerCase();
     if (qRaw.length < 3) return;
-
     if (searchCache.current.has(qLower)) {
       setSearchResults(searchCache.current.get(qLower) || []);
       return;
     }
-
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
+    if (abortControllerRef.current) abortControllerRef.current.abort();
     abortControllerRef.current = new AbortController();
     const { signal } = abortControllerRef.current;
-
     setIsSearching(true);
     try {
       const refinedQuery = qLower.includes('magdeburg') ? qRaw : `${qRaw}, Magdeburg`;
-
-      const standardSearchPromise = fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(refinedQuery)}&viewbox=${NOMINATIM_VIEWBOX}&bounded=1&limit=6`,
-        { signal }
-      ).then(r => r.json());
-
-      const aiSearchPromise = (async () => {
-        try {
-          const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-          const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
-            contents: `STRICT GEOGRAPHIC FILTER: Identify up to 3 official POIs for "${qRaw}" located EXCLUSIVELY inside the city limits of Magdeburg, Germany. Do not return results outside the city. Return names only.`,
-            config: {
-              tools: [{ googleMaps: {} }],
-              toolConfig: {
-                retrievalConfig: {
-                  latLng: { latitude: MAGDEBURG_CENTER[0], longitude: MAGDEBURG_CENTER[1] }
-                }
-              }
-            },
-          });
-          const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-          return chunks.map((c: any) => c.maps?.title).filter(Boolean).slice(0, 3);
-        } catch (e) {
-          console.error("AI Search Error:", e);
-          return [];
-        }
-      })();
-
-      const [osmResults, aiNames] = await Promise.all([standardSearchPromise, aiSearchPromise]);
+      const osmRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(refinedQuery)}&viewbox=${NOMINATIM_VIEWBOX}&bounded=1&limit=6&addressdetails=1`, { signal });
+      const osmResults = await osmRes.json();
       setSearchResults(osmResults);
 
-      if (aiNames.length > 0) {
-        const geocodeResults = await Promise.all(
-          aiNames.map(async (name: string) => {
-            try {
-              const aiGeocodeQuery = name.toLowerCase().includes('magdeburg') ? name : `${name}, Magdeburg`;
-              const res = await fetch(
-                `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(aiGeocodeQuery)}&viewbox=${NOMINATIM_VIEWBOX}&bounded=1&limit=1`,
-                { signal }
-              );
-              const data = await res.json();
-              return data.length > 0 ? { ...data[0], source: 'gemini' } : null;
-            } catch {
-              return null;
-            }
-          })
-        );
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const aiResponse = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Precisely locate "${qRaw}" in the city of Magdeburg.`,
+        config: { tools: [{ googleSearch: {} }] },
+      });
 
+      const aiNames = aiResponse.candidates?.[0]?.groundingMetadata?.groundingChunks?.map((c: any) => c.web?.title || c.maps?.title).filter(Boolean).slice(0, 3) || [];
+      if (aiNames.length > 0) {
+        const geocodeResults = await Promise.all(aiNames.map(async (name: string) => {
+          try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(name + ', Magdeburg')}&viewbox=${NOMINATIM_VIEWBOX}&bounded=1&limit=1`, { signal });
+            const data = await res.json();
+            return data.length > 0 ? { ...data[0], source: 'gemini' } : null;
+          } catch { return null; }
+        }));
         const combined = [...geocodeResults.filter(Boolean), ...osmResults];
         const seen = new Set();
         const final = combined.filter(item => {
@@ -221,245 +255,117 @@ export default function App() {
           seen.add(id);
           return true;
         });
-
         setSearchResults(final);
         searchCache.current.set(qLower, final);
-      } else {
-        searchCache.current.set(qLower, osmResults);
-      }
-    } catch (err: any) {
-      if (err.name !== 'AbortError') console.error("Search error:", err);
-    } finally {
-      setIsSearching(false);
-    }
+      } else { searchCache.current.set(qLower, osmResults); }
+    } catch (err: any) { if (err.name !== 'AbortError') console.error(err); } 
+    finally { setIsSearching(false); }
   }, []);
 
   useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-      if (searchQuery.trim().length > 2) {
-        performSearch(searchQuery);
-      } else {
-        setSearchResults([]);
-      }
-    }, 400); 
+    const delayDebounceFn = setTimeout(() => { if (searchQuery.trim().length > 2) performSearch(searchQuery); else setSearchResults([]); }, 250); 
     return () => clearTimeout(delayDebounceFn);
   }, [searchQuery, performSearch]);
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
-        setSearchResults([]);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition((pos) => {
-        const userLatLng = L.latLng(pos.coords.latitude, pos.coords.longitude);
-        if (SACHSEN_ANHALT_BOUNDS.contains(userLatLng)) {
-          setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
-        }
-      });
+  const addPoiAtLocation = useCallback(async (lat: number, lng: number, providedName?: string) => {
+    if (pois.length >= 6) return;
+    
+    // Check for existing POI very close to click to prevent duplicates
+    const existing = pois.find(p => Math.abs(p.lat - lat) < 0.00015 && Math.abs(p.lng - lng) < 0.00015);
+    if (existing) {
+      setEditingPoiId(existing.id);
+      setMapCenter([existing.lat, existing.lng]);
+      return;
     }
-  }, []);
 
-  const handleLocateMe = () => {
-    if (!navigator.geolocation) return;
-    navigator.geolocation.getCurrentPosition((pos) => {
-      const userLatLng = L.latLng(pos.coords.latitude, pos.coords.longitude);
-      if (SACHSEN_ANHALT_BOUNDS.contains(userLatLng)) {
-        setMapCenter([pos.coords.latitude, pos.coords.longitude]);
-        setMapZoom(16);
-        setUserLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude });
-      }
-    });
-  };
-
-  const selectSearchResult = (result: any) => {
+    const id = generateId();
     const newPoi: POI = {
-      id: `poi-${Date.now()}`,
-      name: result.display_name.split(',')[0],
-      lat: parseFloat(result.lat),
-      lng: parseFloat(result.lon),
+      id,
+      name: providedName || "Searching location...",
+      lat,
+      lng,
       transportMode: null,
       frequencyIndex: 0
     };
+
     setPois(prev => [...prev, newPoi]);
-    setMapCenter([parseFloat(result.lat), parseFloat(result.lon)]);
+    setEditingPoiId(id);
+    setMapCenter([lat, lng]);
     setMapZoom(17);
-    setEditingPoiId(newPoi.id);
     setSearchResults([]);
     setSearchQuery('');
-  };
 
-  const handleMapClick = (lat: number, lng: number) => {
-    const existingIndex = pendingMarkers.findIndex(m => Math.abs(m.lat - lat) < 0.0005 && Math.abs(m.lng - lng) < 0.0005);
-    if (existingIndex !== -1) {
-      setPendingMarkers(prev => prev.filter((_, i) => i !== existingIndex));
-    } else {
-      setPendingMarkers(prev => [...prev, { lat, lng }]);
-    }
-    setEditingPoiId(null);
-  };
-
-  const confirmSelection = async () => {
-    setIsProcessing(true);
-    try {
-      const reverseGeocodePromises = pendingMarkers.map(async (marker, idx) => {
-        await new Promise(r => setTimeout(r, idx * 250));
-        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${marker.lat}&lon=${marker.lng}`);
+    // Background reverse geocoding if name not provided
+    if (!providedName) {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
         const data = await res.json();
-        return {
-          id: `poi-${Date.now()}-${Math.random()}`,
-          name: data.display_name ? data.display_name.split(',')[0] : `Point ${idx + 1}`,
-          lat: marker.lat,
-          lng: marker.lng,
-          transportMode: null,
-          frequencyIndex: 0
-        };
-      });
-
-      const newPois = await Promise.all(reverseGeocodePromises);
-      setPois(prev => [...prev, ...newPois]);
-      setPendingMarkers([]);
-      if (newPois.length > 0) {
-        const lastPoi = newPois[newPois.length - 1];
-        setEditingPoiId(lastPoi.id);
-        setMapCenter([lastPoi.lat, lastPoi.lng]);
-        setMapZoom(17);
+        const finalName = data.display_name ? data.display_name.split(',')[0] : "Point of Interest";
+        setPois(prev => prev.map(p => p.id === id ? { ...p, name: finalName } : p));
+      } catch (e) {
+        setPois(prev => prev.map(p => p.id === id ? { ...p, name: "Marked Location" } : p));
       }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsProcessing(false);
     }
-  };
+  }, [pois]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (over && over.id.toString().startsWith('poi-')) {
       const poiId = over.data.current?.poiId;
-      
-      if (active.data.current?.mode) {
-        const mode = active.data.current.mode as TransportMode;
-        setPois(prev => prev.map(p => p.id === poiId ? { ...p, transportMode: mode } : p));
-      }
-      
-      if (active.data.current?.frequencyIndex !== undefined) {
-        const freqIdx = active.data.current.frequencyIndex as number;
-        setPois(prev => prev.map(p => p.id === poiId ? { ...p, frequencyIndex: freqIdx } : p));
-      }
-      
+      if (active.data.current?.mode) setPois(prev => prev.map(p => p.id === poiId ? { ...p, transportMode: active.data.current.mode } : p));
+      if (active.data.current?.frequencyIndex !== undefined) setPois(prev => prev.map(p => p.id === poiId ? { ...p, frequencyIndex: active.data.current.frequencyIndex } : p));
       setEditingPoiId(poiId);
     }
-    setActiveTransport(null);
-    setActiveFrequencyIndex(null);
-  };
-
-  const handleClearTransport = (id: string) => {
-    setPois(prev => prev.map(p => p.id === id ? { ...p, transportMode: null } : p));
-  };
-
-  const getLayerName = (layer: MapLayer) => {
-    switch(layer) {
-      case MapLayer.STANDARD: return t.layerStandard;
-      case MapLayer.BUILDINGS_3D: return t.layer3D;
-      default: return "";
-    }
-  };
-
-  // Improved, fully localized summary generation
-  const summaryEN = useMemo(() => {
-    if (pois.length === 0) return "";
-    const en = TRANSLATIONS[Language.EN];
-    let text = `${en.summaryPrefix}\n\n`;
-    pois.forEach((poi, i) => {
-      const mode = poi.transportMode ? en.modes[poi.transportMode] : en.summaryNoTransport;
-      const freq = en.frequencies[poi.frequencyIndex] || en.frequencies[0];
-      text += `${i + 1}. You visit **${poi.name}** primarily by **${mode}**, with a frequency of **${freq}**.\n`;
-    });
-    text += `\n${en.summaryFooter}`;
-    return text;
-  }, [pois]);
-
-  const summaryDE = useMemo(() => {
-    if (pois.length === 0) return "";
-    const de = TRANSLATIONS[Language.DE];
-    let text = `${de.summaryPrefix}\n\n`;
-    pois.forEach((poi, i) => {
-      const mode = poi.transportMode ? de.modes[poi.transportMode] : de.summaryNoTransport;
-      const freq = de.frequencies[poi.frequencyIndex] || de.frequencies[0];
-      text += `${i + 1}. Sie besuchen **${poi.name}** hauptsächlich mit dem **${mode}**, mit einer Häufigkeit von **${freq}**.\n`;
-    });
-    text += `\n${de.summaryFooter}`;
-    return text;
-  }, [pois]);
-
-  const handleStoreData = async () => {
-    setIsStoring(true);
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    setIsStoring(false);
-    setIsStored(true);
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-[#FDFDFD] h-screen overflow-hidden font-sans text-gray-900">
-      <div className="w-full md:w-[400px] flex flex-col border-r border-gray-100 bg-white z-20 overflow-hidden shrink-0 shadow-2xl">
-        <header className="p-6 border-b bg-white relative z-30">
-          <div className="flex items-start justify-between mb-4">
+    <div className="h-screen w-screen flex flex-col md:flex-row bg-[#F9FAFB] overflow-hidden text-slate-900 selection:bg-[#93132B20]">
+      {/* Sidebar */}
+      <div className="w-full md:w-[460px] flex flex-col bg-white z-20 overflow-hidden shrink-0 shadow-2xl border-r border-slate-100">
+        <header className="p-8 pb-4 shrink-0">
+          <div className="flex items-center justify-between mb-8">
             <div className="flex items-center">
-              <OVGULogo />
-              <div className="flex flex-col">
-                <h1 className="text-lg font-black text-[#1a1a1a] tracking-tight leading-tight">
-                  {t.title.split(' ').map((w, i) => <span key={i} className={i === 0 ? "text-[#93132B]" : ""}>{w} </span>)}
-                </h1>
-                <a 
-                  href="https://www.ovgu.de/imiq" 
-                  target="_blank" 
-                  rel="noopener noreferrer" 
-                  className="text-[10px] font-bold text-gray-400 hover:text-[#93132B] transition uppercase tracking-[0.15em] flex items-center gap-1"
-                >
-                  {t.imiqProject}
-                  <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                </a>
-              </div>
+              <AppLogo />
+              <h1 className="text-xl font-black text-slate-800 tracking-tight leading-none mb-1">
+                <span className="text-[#93132B]">POI</span> Selector
+              </h1>
             </div>
-            <LanguageSwitch current={lang} onChange={setLang} />
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={handleOpenNewTab} 
+                className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400 hover:text-[#93132B] hover:bg-[#93132B10] transition-all"
+                title={t.openNewTab}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </button>
+              <button onClick={() => setShowTutorial(true)} className="w-9 h-9 rounded-xl bg-slate-50 flex items-center justify-center text-[#93132B] hover:bg-[#93132B10] transition-colors">
+                <span className="text-sm font-bold">?</span>
+              </button>
+              <LanguageSwitch current={lang} onChange={setLang} />
+            </div>
           </div>
 
-          <div ref={searchContainerRef} className="relative group">
-            <div className="relative">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder={t.searchPlaceholder}
-                className="w-full pl-4 pr-12 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:ring-4 focus:ring-[#93132B15] focus:border-[#93132B] focus:bg-white focus:outline-none transition-all shadow-sm"
-              />
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                {isSearching ? <div className="animate-spin h-5 w-5 border-2 border-[#93132B] border-t-transparent rounded-full" /> : 
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>}
-              </div>
+          <div className="relative group">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={t.searchPlaceholder}
+              disabled={pois.length >= 6}
+              className={`w-full pl-6 pr-14 py-4 bg-slate-50 border-transparent rounded-2xl text-sm font-medium focus:ring-4 focus:ring-[#93132B08] focus:bg-white focus:border-[#93132B20] outline-none transition-all shadow-inner ${pois.length >= 6 ? 'opacity-50 cursor-not-allowed' : ''}`}
+            />
+            <div className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-300">
+              {isSearching ? <div className="animate-spin h-5 w-5 border-2 border-[#93132B] border-t-transparent rounded-full" /> : 
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>}
             </div>
-
             {searchResults.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-100 rounded-2xl shadow-2xl overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-200 max-h-[400px] overflow-y-auto custom-scrollbar">
-                {searchResults.map((res, idx) => (
-                  <button 
-                    key={res.place_id || idx} 
-                    onClick={() => selectSearchResult(res)} 
-                    className="w-full text-left px-5 py-3 text-sm text-gray-700 hover:bg-gray-50 hover:text-[#93132B] transition-colors border-b last:border-b-0 border-gray-50 flex items-center gap-3 group"
-                  >
-                    <div className="text-xl bg-gray-100 w-10 h-10 rounded-xl flex items-center justify-center shrink-0 group-hover:bg-[#93132B10]">
-                      {getCategoryIcon(res)}
-                    </div>
-                    <div className="overflow-hidden">
-                      <span className="font-semibold block truncate">{res.display_name.split(',')[0]}</span>
-                      <span className="text-[10px] text-gray-400 block truncate leading-tight">{res.display_name.split(',').slice(1).join(',')}</span>
-                    </div>
+              <div className="absolute top-full left-0 right-0 mt-3 bg-white border border-slate-100 rounded-2xl shadow-3xl overflow-hidden z-50 max-h-[300px] overflow-y-auto custom-scrollbar">
+                {searchResults.map((res, i) => (
+                  <button key={i} onClick={() => addPoiAtLocation(parseFloat(res.lat), parseFloat(res.lon), res.display_name.split(',')[0])} className="w-full text-left px-5 py-3 hover:bg-[#93132B05] transition-colors border-b last:border-0 border-slate-50 flex items-center gap-3">
+                    <span className="text-xl">{getCategoryIcon(res)}</span>
+                    <div className="truncate"><span className="block font-bold text-slate-800 truncate">{res.display_name.split(',')[0]}</span><span className="text-[10px] text-slate-400 font-medium">{res.display_name.split(',').slice(1, 3).join(',')}</span></div>
                   </button>
                 ))}
               </div>
@@ -467,292 +373,168 @@ export default function App() {
           </div>
         </header>
 
-        <DndContext 
-          sensors={sensors} 
-          onDragStart={(e) => {
-            if (e.active.data.current?.mode) setActiveTransport(e.active.data.current.mode);
-            if (e.active.data.current?.frequencyIndex !== undefined) setActiveFrequencyIndex(e.active.data.current.frequencyIndex);
-          }} 
-          onDragEnd={handleDragEnd}
-        >
-          <div className="flex-1 overflow-y-auto px-6 py-4 custom-scrollbar">
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-xs font-bold text-gray-400 uppercase tracking-[0.2em]">{t.addedPois}</h2>
-              {pois.length > 0 && (
-                <button onClick={() => setShowClearConfirm(true)} className="text-[10px] font-bold text-gray-400 hover:text-[#93132B] transition uppercase tracking-widest flex items-center gap-1">
-                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                  {t.clearAll}
-                </button>
-              )}
+        <div className="px-8 mb-4 shrink-0">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+               <h2 className="text-[10px] font-black text-slate-300 uppercase tracking-widest">{t.addedPois}</h2>
+               <p className={`text-[9px] font-bold uppercase mt-0.5 tracking-tighter ${isValidCount ? 'text-green-500' : 'text-orange-500'}`}>
+                  {pois.length < 3 ? t.poiNeeded : (pois.length > 6 ? t.poiTooMany : '✓ Count (3-6)')}
+               </p>
             </div>
-            
-            <div className="space-y-4">
-              {pois.length === 0 ? (
-                <div className="py-12 px-6 text-center bg-gray-50 rounded-3xl border-2 border-dashed border-gray-100">
-                  <div className="text-4xl mb-4">📍</div>
-                  <p className="text-sm text-gray-400 font-medium leading-relaxed">{t.noPois}</p>
-                </div>
-              ) : (
-                pois.map(poi => (
+          </div>
+          <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+            <div className={`h-full transition-all duration-700 ease-out ${isValidCount ? 'bg-green-500' : 'bg-orange-400'}`} style={{ width: `${completionPercentage}%` }} />
+          </div>
+        </div>
+
+        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+          <div className="flex-1 overflow-y-auto px-8 py-2 custom-scrollbar">
+            {pois.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-center opacity-60">
+                 <div className="w-24 h-24 bg-slate-50 rounded-3xl mb-4 flex items-center justify-center text-5xl">📍</div>
+                 <p className="text-xs font-black uppercase tracking-widest text-slate-400 max-w-[200px] mb-2">{t.noPois}</p>
+                 <div className="px-4 py-2 bg-[#93132B08] rounded-2xl border border-[#93132B10]">
+                    <p className="text-[10px] text-[#93132B] font-black uppercase tracking-widest">{t.poiRequirement}</p>
+                 </div>
+              </div>
+            ) : (
+              <div className="space-y-4 pb-8">
+                {pois.map(poi => (
                   <POICard 
-                    key={poi.id} 
-                    poi={poi} 
-                    lang={lang} 
-                    isEditing={editingPoiId === poi.id} 
+                    key={poi.id} poi={poi} lang={lang} isEditing={editingPoiId === poi.id} 
                     onEditToggle={() => {
                       const isNowEditing = editingPoiId !== poi.id;
                       setEditingPoiId(isNowEditing ? poi.id : null);
-                      if (isNowEditing) {
-                        setMapCenter([poi.lat, poi.lng]);
-                        setMapZoom(17);
-                      }
+                      if (isNowEditing) { setMapCenter([poi.lat, poi.lng]); setMapZoom(17); }
                     }} 
                     onRemove={(id) => setPois(p => p.filter(x => x.id !== id))} 
                     onFrequencyChange={(id, idx) => setPois(p => p.map(x => x.id === id ? {...x, frequencyIndex: idx} : x))} 
                     onNameChange={(id, n) => setPois(p => p.map(x => x.id === id ? {...x, name: n} : x))} 
-                    onClearTransport={() => handleClearTransport(poi.id)}
+                    onClearTransport={() => setPois(prev => prev.map(p => p.id === poi.id ? { ...p, transportMode: null } : p))}
                   />
-                ))
-              )}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          <footer className="p-6 bg-white border-t border-gray-100 overflow-y-auto max-h-[45%] custom-scrollbar">
-            <div className="mb-4">
-              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 px-1">{t.frequencyLabel}</h3>
-              <div className="grid grid-cols-4 gap-2">
-                {t.frequencies.map((f, i) => <FrequencySource key={i} label={f} index={i} />)}
-              </div>
+          <footer className="p-8 pb-10 bg-[#F9FAFB] border-t border-slate-100 rounded-t-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.05)] shrink-0">
+            <div className="grid grid-cols-5 gap-3 mb-8">
+              {Object.values(TransportMode).slice(0, 10).map(mode => <TransportSource key={mode} mode={mode} lang={lang} />)}
             </div>
-
-            <div>
-              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 px-1">{t.transportLabel}</h3>
-              <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 mb-6">
-                {Object.values(TransportMode).map(mode => <TransportSource key={mode} mode={mode} lang={lang} />)}
-              </div>
+            
+            <div className="relative">
+              {!canSave && pois.length > 0 && (
+                <div className="absolute -top-8 left-0 right-0 text-center animate-bounce">
+                  <span className="text-[9px] font-black text-[#93132B] uppercase tracking-tighter bg-white px-3 py-1.5 rounded-full border border-[#93132B20] shadow-xl">
+                    {pois.length < 3 ? t.poiNeeded : (completedPoisCount < pois.length ? t.modeMissing : '')}
+                  </span>
+                </div>
+              )}
+              <button
+                onClick={() => setIsFinalized(true)}
+                disabled={!canSave}
+                className={`w-full py-5 rounded-2xl font-black uppercase tracking-widest text-xs transition-all shadow-xl active:scale-[0.98] ${
+                  !canSave ? 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none' : 
+                  'bg-[#93132B] text-white hover:bg-[#7a0f24] shadow-[#93132B30] ring-4 ring-[#93132B10]'
+                }`}
+              >
+                {t.saveData}
+              </button>
             </div>
-
-            <button
-              onClick={() => setIsFinalized(true)}
-              disabled={pois.length === 0}
-              className={`w-full py-4 rounded-2xl font-bold transition-all shadow-xl hover:shadow-2xl active:scale-[0.98] ${
-                pois.length === 0 ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : 'bg-[#93132B] text-white hover:bg-[#7a0f24]'
-              }`}
-            >
-              {t.saveData}
-            </button>
           </footer>
-
-          <DragOverlay>
-            {activeTransport && (
-              <div className="flex flex-col items-center justify-center p-4 bg-white border-2 border-[#93132B] rounded-3xl shadow-2xl scale-125 z-[6000]">
-                <span className="text-4xl">{TRANSPORT_ICONS[activeTransport]}</span>
-              </div>
-            )}
-            {activeFrequencyIndex !== null && (
-              <div className="flex flex-col items-center justify-center p-4 bg-white border-2 border-blue-500 rounded-3xl shadow-2xl scale-125 z-[6000]">
-                <span className="text-4xl">{FREQUENCY_ICONS[activeFrequencyIndex]}</span>
-              </div>
-            )}
-          </DragOverlay>
         </DndContext>
       </div>
 
-      <div className="flex-1 relative min-h-[400px]">
+      {/* Main Map Content */}
+      <div className="flex-1 relative h-full">
         <MapContainer 
           center={MAGDEBURG_CENTER} 
           zoom={14} 
-          minZoom={12}
-          maxZoom={19}
-          maxBounds={SACHSEN_ANHALT_BOUNDS}
-          maxBoundsViscosity={1.0}
-          style={{ height: '100%', width: '100%' }}
+          minZoom={12} 
+          maxZoom={TILE_OPTIONS.maxZoom} 
+          maxBounds={SACHSEN_ANHALT_BOUNDS} 
+          maxBoundsViscosity={1.0} 
+          style={{ height: '100%', width: '100%', background: '#f8f8f7' }}
         >
-          <TileLayer 
-            key={mapLayer}
-            url={`https://{s}.f4map.com/tiles/${mapLayer}/{z}/{x}/{y}.png`}
-            subdomains={['tile1', 'tile2', 'tile3', 'tile4']}
-            bounds={SACHSEN_ANHALT_BOUNDS}
-            attribution='&copy; <a href="https://www.f4map.com">F4map</a>, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          />
-          <MapEvents onMapClick={handleMapClick} />
+          <TileLayer {...TILE_OPTIONS} url={URBAN_TILE_URL} />
+          {cityBoundary && (
+            <GeoJSON 
+              data={cityBoundary} 
+              style={{ color: FLUORESCENT_CYAN, weight: 3, fillOpacity: 0.04, fillColor: FLUORESCENT_CYAN, dashArray: '8, 12' }} 
+            />
+          )}
+          
+          {/* Background Selectable Dots (Overpass Data) */}
+          {cityPois.map((cp, idx) => (
+            <Marker 
+              key={`bg-poi-${idx}`} 
+              position={[cp.lat, cp.lng]} 
+              icon={backgroundPoiIcon} 
+              interactive={true}
+              eventHandlers={{
+                click: (e) => {
+                  L.DomEvent.stopPropagation(e);
+                  addPoiAtLocation(cp.lat, cp.lng, cp.name);
+                }
+              }}
+            >
+              <Tooltip direction="top" opacity={0.8} className="bg-white/95 border-none shadow-xl text-[9px] font-black text-[#93132B] uppercase tracking-tighter px-2 py-1 rounded-md pointer-events-none">
+                {cp.name}
+              </Tooltip>
+            </Marker>
+          ))}
+
+          <MapEvents onMapClick={addPoiAtLocation} />
           <MapController center={mapCenter} zoom={mapZoom} />
           
+          {/* Active POIs */}
           {pois.map(poi => (
             <Marker 
               key={poi.id} 
               position={[poi.lat, poi.lng]} 
               icon={editingPoiId === poi.id ? selectedIcon : (poi.transportMode ? defaultIcon : incompleteIcon)}
-              eventHandlers={{ 
-                click: (e) => {
-                  L.DomEvent.stopPropagation(e);
-                  setEditingPoiId(poi.id); 
-                  setMapCenter([poi.lat, poi.lng]);
-                  setMapZoom(17);
-                } 
-              }}
+              eventHandlers={{ click: (e) => { 
+                L.DomEvent.stopPropagation(e); 
+                setEditingPoiId(poi.id); 
+                setMapCenter([poi.lat, poi.lng]); 
+              }}}
               zIndexOffset={editingPoiId === poi.id ? 1000 : 0}
             >
               <Tooltip direction="top" offset={[0, -25]} opacity={1} permanent={editingPoiId === poi.id}>
-                <div className="px-3 py-2 bg-white rounded-lg shadow-xl border border-gray-100 pointer-events-none">
-                  <p className="font-bold text-[#1a1a1a] border-b pb-1 mb-1 truncate max-w-[150px]">{poi.name}</p>
-                  <p className="text-xs text-gray-500 flex items-center gap-1">
-                    {poi.transportMode ? <span>{TRANSPORT_ICONS[poi.transportMode]} {t.modes[poi.transportMode]}</span> : <span className="text-orange-500">Mode missing</span>}
-                  </p>
+                <div className="px-4 py-2 bg-white rounded-xl shadow-2xl border border-slate-50 pointer-events-none min-w-[100px]">
+                  <p className="font-extrabold text-slate-800 border-b border-slate-50 pb-1.5 mb-1 truncate max-w-[160px]">{poi.name}</p>
+                  <div className="text-[10px] font-bold text-slate-500 flex items-center gap-2">
+                    {poi.transportMode ? <><span className="text-sm">{TRANSPORT_ICONS[poi.transportMode]}</span> {t.modes[poi.transportMode]}</> : <span className="text-orange-500 uppercase tracking-tighter">Information needed</span>}
+                  </div>
                 </div>
               </Tooltip>
             </Marker>
           ))}
-
-          {pendingMarkers.map((m, i) => <Marker key={i} position={[m.lat, m.lng]} icon={createMarkerIcon("#f59e0b")} />)}
         </MapContainer>
-
-        <div className="absolute top-6 right-20 z-[1000] flex flex-col items-end gap-2">
-          {showLayerPicker && (
-            <div className="bg-white/90 backdrop-blur-md rounded-2xl shadow-2xl p-2 border border-white flex flex-col gap-1 animate-in slide-in-from-top-4 duration-200">
-              {Object.values(MapLayer).map((layer) => (
-                <button
-                  key={layer}
-                  onClick={() => { setMapLayer(layer); setShowLayerPicker(false); }}
-                  className={`flex items-center gap-3 px-4 py-2 rounded-xl transition-all ${
-                    mapLayer === layer ? 'bg-[#93132B] text-white shadow-lg' : 'hover:bg-gray-100 text-gray-700'
-                  }`}
-                >
-                  <span className="text-xl">{LAYER_ICONS[layer]}</span>
-                  <span className="text-xs font-bold whitespace-nowrap">{getLayerName(layer)}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          <button 
-            onClick={() => setShowLayerPicker(!showLayerPicker)}
-            className="bg-white p-3 rounded-2xl shadow-2xl hover:bg-gray-50 text-[#93132B] transition-all active:scale-95 border border-gray-100 flex items-center gap-2 group"
-          >
-            <span className="text-2xl">{LAYER_ICONS[mapLayer]}</span>
-            <svg className={`w-4 h-4 transition-transform duration-300 ${showLayerPicker ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-          </button>
-        </div>
-
-        <button onClick={handleLocateMe} className="absolute top-6 right-6 z-[1000] bg-white p-3 rounded-2xl shadow-2xl hover:bg-gray-50 text-[#93132B] transition-all active:scale-95 border border-gray-100">
-          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-        </button>
-
-        {pendingMarkers.length > 0 && (
-          <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-3 bg-white/95 backdrop-blur-xl p-3 rounded-[2rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-white animate-in slide-in-from-bottom-10">
-            <div className="pl-6 pr-4 border-r border-gray-100 py-2">
-              <span className="text-2xl font-black text-[#93132B]">{pendingMarkers.length}</span>
-              <span className="ml-2 text-xs font-bold text-gray-400 uppercase tracking-widest">{t.pendingCount}</span>
-            </div>
-            <button onClick={confirmSelection} disabled={isProcessing} className="bg-[#93132B] text-white px-8 py-3 rounded-2xl font-bold hover:bg-[#7a0f24] transition-all shadow-lg hover:shadow-[#93132B40] disabled:opacity-50 min-w-[140px]">
-              {isProcessing ? <div className="animate-pulse">{t.processing}</div> : t.confirmSelection}
-            </button>
-            <button onClick={() => setPendingMarkers([])} className="px-6 py-3 rounded-2xl font-bold text-gray-500 hover:bg-gray-100 transition-colors">
-              {t.clearSelection}
-            </button>
-          </div>
-        )}
       </div>
 
-      {showTutorial && (
-        <Tutorial lang={lang} onClose={handleCloseTutorial} />
-      )}
-
+      {showTutorial && <Tutorial lang={lang} onClose={() => { setShowTutorial(false); localStorage.setItem('ovgu_mobility_tutorial_seen', 'true'); }} />}
       {isFinalized && (
-        <div className="fixed inset-0 z-[5000] flex items-center justify-center p-6 bg-[#93132B]/20 backdrop-blur-md">
-          <div className="bg-white rounded-[2.5rem] p-8 md:p-10 max-w-4xl w-full shadow-3xl border border-gray-50 animate-in zoom-in-95 duration-300 max-h-[90vh] flex flex-col">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-4">
-                <div className="bg-maroon-100 text-[#93132B] p-3 rounded-2xl bg-[#93132B10]">
-                  <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                </div>
-                <h2 className="text-2xl md:text-3xl font-black text-[#1a1a1a]">{t.finalizeTitle}</h2>
+        <div className="fixed inset-0 z-[5000] flex items-center justify-center p-6 bg-slate-900/30 backdrop-blur-md animate-in fade-in">
+           <div className="bg-white rounded-[3rem] p-10 max-w-xl w-full shadow-3xl text-center">
+              <h2 className="text-3xl font-black mb-6">{t.finalizeTitle}</h2>
+              <div className="bg-slate-50 p-6 rounded-3xl text-left mb-8 max-h-[300px] overflow-y-auto custom-scrollbar">
+                 <ul className="space-y-3">
+                   {pois.map(p => (
+                     <li key={p.id} className="flex justify-between border-b pb-2 border-slate-100 last:border-0">
+                       <span className="font-bold text-slate-800">{p.name}</span>
+                       <span className="text-slate-500 font-medium">{p.transportMode ? t.modes[p.transportMode] : '?'} • {t.frequencies[p.frequencyIndex]}</span>
+                     </li>
+                   ))}
+                 </ul>
               </div>
-              <button onClick={() => { setIsFinalized(false); setIsStored(false); }} className="text-gray-400 hover:text-gray-600 transition-colors p-2">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-            
-            {!isStored ? (
-              <>
-                <p className="text-gray-500 mb-6 leading-relaxed font-medium">{t.finalizeDesc}</p>
-                
-                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-8 pr-4 mb-8">
-                  <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100 relative">
-                    <div className="absolute top-4 right-4 text-[10px] font-black text-gray-300 uppercase tracking-widest">{t.summaryIn} English</div>
-                    <div className="prose prose-sm prose-maroon text-gray-600 max-w-none">
-                       {summaryEN.split('\n').map((line, i) => (
-                         <p key={i} className="mb-2 last:mb-0" dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, '<strong class="text-[#93132B] font-bold">$1</strong>') }} />
-                       ))}
-                    </div>
-                  </div>
-
-                  <div className="bg-[#93132B]/[0.02] p-6 rounded-3xl border border-[#93132B10] relative">
-                    <div className="absolute top-4 right-4 text-[10px] font-black text-gray-300 uppercase tracking-widest">{t.summaryIn} Deutsch</div>
-                    <div className="prose prose-sm prose-maroon text-gray-600 max-w-none">
-                       {summaryDE.split('\n').map((line, i) => (
-                         <p key={i} className="mb-2 last:mb-0" dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, '<strong class="text-[#93132B] font-bold">$1</strong>') }} />
-                       ))}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex gap-4">
-                  <button onClick={() => setIsFinalized(false)} className="flex-1 py-4 px-6 border border-gray-200 text-gray-500 rounded-2xl font-bold hover:bg-gray-50 transition-all">{t.cancel}</button>
-                  <button 
-                    onClick={handleStoreData} 
-                    disabled={isStoring}
-                    className="flex-[2] bg-[#93132B] text-white py-4 rounded-2xl font-bold hover:bg-[#7a0f24] transition-all shadow-xl hover:shadow-[#93132B40] flex items-center justify-center gap-3 disabled:opacity-70 disabled:cursor-not-allowed"
-                  >
-                    {isStoring ? (
-                      <>
-                        <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
-                        <span>{t.storingData}</span>
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-                        <span>{t.storeData}</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="flex-1 flex flex-col items-center justify-center text-center p-8 animate-in fade-in zoom-in-95 duration-500">
-                <div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center text-5xl mb-6 shadow-lg shadow-green-100">
-                  <svg className="w-12 h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-                </div>
-                <h3 className="text-2xl font-black text-gray-900 mb-4">{t.successMessage}</h3>
-                <p className="text-gray-500 mb-8 max-w-sm">The IMIQ Project thanks you for your support. Your data will help improve urban planning in Magdeburg.</p>
-                <button onClick={() => { setIsFinalized(false); setIsStored(false); }} className="px-10 py-4 bg-[#1a1a1a] text-white rounded-2xl font-bold hover:bg-black transition-all shadow-xl">Done</button>
+              <div className="flex gap-4">
+                 <button onClick={() => setIsFinalized(false)} className="flex-1 py-4 rounded-2xl font-bold bg-slate-100 text-slate-500">Back</button>
+                 <button onClick={() => setIsFinalized(false)} className="flex-1 py-4 rounded-2xl font-bold bg-green-600 text-white shadow-xl">Confirm All</button>
               </div>
-            )}
-          </div>
+           </div>
         </div>
       )}
-
-      {showClearConfirm && (
-        <div className="fixed inset-0 z-[5000] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-[2rem] p-8 max-sm w-full shadow-3xl text-center animate-in scale-95 duration-200">
-            <div className="mx-auto bg-red-50 p-5 rounded-full w-fit text-red-600 mb-6">
-              <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-            </div>
-            <p className="text-xl font-bold text-[#1a1a1a] mb-8">{t.clearAllConfirm}</p>
-            <div className="flex gap-4">
-              <button onClick={() => setShowClearConfirm(false)} className="flex-1 py-4 rounded-2xl font-bold bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors">{t.cancel}</button>
-              <button onClick={() => { setPois([]); setShowClearConfirm(false); }} className="flex-1 py-4 rounded-2xl font-bold bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-200">{t.confirm}</button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      <style>{`
-        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
-        .prose strong { color: #93132B; font-weight: 800; }
-      `}</style>
     </div>
   );
 }

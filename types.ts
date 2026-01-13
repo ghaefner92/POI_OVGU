@@ -1,4 +1,3 @@
-
 export enum Language {
   DE = 'de',
   EN = 'en'
@@ -18,12 +17,6 @@ export enum TransportMode {
   TAXI = 'TAXI',
   CARSHARING = 'CARSHARING',
   BIKESHARING = 'BIKESHARING'
-}
-
-/* Fixed MapLayer enum for F4Map visualization modes */
-export enum MapLayer {
-  STANDARD = 'f4_2d',
-  BUILDINGS_3D = 'f4_3d'
 }
 
 export interface POI {
@@ -69,13 +62,14 @@ export interface Translations {
   summaryIn: string;
   summaryNoTransport: string;
   summaryFooter: string;
+  modeMissing: string;
+  helpTooltip: string;
+  openNewTab: string;
+  poiRequirement: string;
+  poiTooMany: string;
+  poiNeeded: string;
   modes: Record<TransportMode, string>;
   frequencies: string[];
-  /* Map layer translation keys */
-  layerStandard: string;
-  layer3D: string;
-  layerNight: string;
-  /* Tutorial Keys */
   tutorialNext: string;
   tutorialClose: string;
   tutorialStart: string;
