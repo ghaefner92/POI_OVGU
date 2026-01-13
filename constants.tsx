@@ -1,26 +1,20 @@
-import { Language, TransportMode, Translations } from './types';
+
+import { Language, TransportMode, Translations, MapLayer } from './types';
 import L from 'leaflet';
 
 export const MAGDEBURG_CENTER: [number, number] = [52.1307, 11.6250];
 export const BRAND_MAROON = "#93132B"; 
-export const FLUORESCENT_CYAN = "#00F2FF";
 
-// Restricted bounds for the city area
 export const SACHSEN_ANHALT_BOUNDS = L.latLngBounds(
   L.latLng(52.03, 11.45), 
-  L.latLng(52.23, 11.78)
+  L.latLng(52.23, 11.78)  
 );
 
-// Bounding box for Nominatim search (minLon, maxLat, maxLon, minLat)
 export const NOMINATIM_VIEWBOX = "11.45,52.23,11.78,52.03";
 
-// We use CartoDB Voyager. Set maxNativeZoom to 19 to prevent gray tiles at zoom 20+
-export const URBAN_TILE_URL = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
-export const TILE_OPTIONS = {
-  maxZoom: 22,
-  maxNativeZoom: 19,
-  detectRetina: true,
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+export const LAYER_ICONS: Record<MapLayer, string> = {
+  [MapLayer.STANDARD]: "🗺️",
+  [MapLayer.BUILDINGS_3D]: "🏢"
 };
 
 export const FREQUENCY_ICONS: Record<number, string> = {
@@ -30,32 +24,16 @@ export const FREQUENCY_ICONS: Record<number, string> = {
   3: "🔥"  
 };
 
-export const TRANSPORT_ICONS: Record<TransportMode, string> = {
-  [TransportMode.WALKING]: "🚶",
-  [TransportMode.CYCLING]: "🚲",
-  [TransportMode.E_BIKE]: "⚡",
-  [TransportMode.TRAM]: "🚃",
-  [TransportMode.BUS]: "🚌",
-  [TransportMode.CAR_DRIVER]: "🚗",
-  [TransportMode.CAR_PASSENGER]: "👨‍👩‍👧",
-  [TransportMode.E_SCOOTER]: "🛴",
-  [TransportMode.TRAIN]: "🚆",
-  [TransportMode.MOTORBIKE]: "🏍️",
-  [TransportMode.TAXI]: "🚕",
-  [TransportMode.CARSHARING]: "🚙",
-  [TransportMode.BIKESHARING]: "🚲"
-};
-
 export const TRANSLATIONS: Record<Language, Translations> = {
   [Language.EN]: {
-    title: "POI Selector",
-    imiqProject: "Urban Research",
-    searchPlaceholder: "Search for places...",
+    title: "OVGU Mobility Tracker",
+    imiqProject: "IMIQ Project",
+    searchPlaceholder: "Search for places in Magdeburg...",
     addPoi: "Add POI",
     addedPois: "Your Frequented Locations",
     dragHint: "Drag transport mode here",
     saveData: "Confirm All Selections",
-    noPois: "Click the map or search for a place.",
+    noPois: "Click the map or search for a place in Magdeburg.",
     frequencyLabel: "Weekly Frequency",
     transportLabel: "Main Transport Mode",
     finalizeTitle: "Mobility Summary",
@@ -69,19 +47,17 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     cancel: "Go Back",
     confirm: "Yes, Reset",
     resetTransport: "Reset transport",
-    storeData: "Submit data",
-    storingData: "Syncing data...",
-    successMessage: "Data successfully submitted! Thank you.",
-    summaryPrefix: "You have selected the following mobility profile:",
+    storeData: "Store data in OVGU servers",
+    storingData: "Syncing with OVGU servers...",
+    successMessage: "Data successfully stored!",
+    successDesc: "The IMIQ Project thanks you for your support. Your data will help improve urban planning in Magdeburg.",
+    summaryPrefix: "You have selected the following mobility profile in the Magdeburg area:",
     summaryIn: "Summary in",
     summaryNoTransport: "an unspecified mode of transport",
-    summaryFooter: "Your input will help improve urban planning and accessibility.",
-    modeMissing: "Info needed",
-    helpTooltip: "Show Tutorial",
-    openNewTab: "Open in new tab",
-    poiRequirement: "Please select between 3 and 6 locations.",
-    poiTooMany: "Too many locations (Max 6).",
-    poiNeeded: "More locations needed (Min 3).",
+    summaryFooter: "Your input will help improve urban planning and campus accessibility.",
+    summaryPointLabel: "Location",
+    modeMissing: "Mode missing",
+    done: "Done",
     modes: {
       [TransportMode.WALKING]: "Walking",
       [TransportMode.CYCLING]: "Cycling",
@@ -98,6 +74,9 @@ export const TRANSLATIONS: Record<Language, Translations> = {
       [TransportMode.BIKESHARING]: "Bike Sharing"
     },
     frequencies: ["Occasionally", "2-3 days", "4-5 days", "Daily"],
+    layerStandard: "Standard",
+    layer3D: "3D Buildings",
+    layerNight: "Night View",
     tutorialNext: "Next",
     tutorialClose: "Skip Tutorial",
     tutorialStart: "Let's Start",
@@ -105,66 +84,69 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     tutorialSteps: [
       {
         title: "Welcome!",
-        description: "Mark 3 to 6 locations in Magdeburg where you spend time regularly (e.g. work, home, hobbies).",
-        icon: "🏢"
+        description: "Help us understand mobility habits in Magdeburg by marking the places you visit most often.",
+        icon: "👋"
       },
       {
-        title: "Find Your Spots",
-        description: "Use the search bar to find exact addresses or simply click anywhere on the map to drop a pin.",
+        title: "Search Locations",
+        description: "Search for specific addresses or buildings strictly within the city limits of Magdeburg.",
         icon: "🔍"
       },
       {
-        title: "City Boundaries",
-        description: "The bright cyan line shows the city limits. Please stay within these borders for your selection.",
-        icon: "🏙️"
+        title: "Mark the Map",
+        description: "You can also click directly on the map to drop a pin. Multiple pins can be confirmed at once!",
+        icon: "📍"
       },
       {
-        title: "Drag & Drop",
-        description: "Drag the transport icons from the bottom and drop them onto your locations in the sidebar.",
+        title: "Transport Modes",
+        description: "Drag the icons from the footer and drop them onto your locations to specify how you get there.",
         icon: "🚲"
       },
       {
-        title: "Almost There",
-        description: "Ensure all 3-6 locations have a transport mode and frequency set before clicking Confirm All.",
+        title: "View Modes",
+        description: "Toggle between 2D, 3D views to better recognize buildings and landmarks.",
+        icon: "🏢"
+      },
+      {
+        title: "Finalize",
+        description: "Once you've added your key locations, click 'Confirm All Selections' to submit your data.",
         icon: "✅"
       }
     ]
   },
   [Language.DE]: {
-    title: "POI Selector",
-    imiqProject: "Urbane Forschung",
-    searchPlaceholder: "Suche nach Orten...",
+    title: "OVGU Mobilitäts-Tracker",
+    imiqProject: "IMIQ Projekt",
+    searchPlaceholder: "Suche nach Orten in Magdeburg...",
     addPoi: "Ort hinzufügen",
     addedPois: "Ihre Ziele",
-    dragHint: "Verkehrsmittel ziehen",
+    dragHint: "Verkehrsmittel hierher ziehen",
     saveData: "Alle Auswahl bestätigen",
-    noPois: "Klicken Sie auf die Karte oder suchen Sie einen Ort.",
+    noPois: "Klicken Sie auf die Karte oder suchen Sie einen Ort in Magdeburg.",
     frequencyLabel: "Wöchentliche Häufigkeit",
     transportLabel: "Hauptverkehrsmittel",
-    finalizeTitle: "Zusammenfassung",
+    finalizeTitle: "Mobilitäts-Zusammenfassung",
     finalizeDesc: "Bitte überprüfen Sie die Zusammenfassung Ihrer Mobilitätsgewohnheiten vor dem Absenden.",
     confirmSelection: "Orte bestätigen",
     clearSelection: "Abbrechen",
     pendingCount: "Punkte markiert",
     processing: "Orte werden bestimmt...",
-    clearAll: "Reset",
+    clearAll: "Karte zurücksetzen",
     clearAllConfirm: "Möchten Sie wirklich alle Punkte entfernen? Dies kann nicht rückgängig gemacht werden.",
     cancel: "Abbrechen",
-    confirm: "Ja, Reset",
+    confirm: "Ja, zurücksetzen",
     resetTransport: "Verkehrsmittel löschen",
-    storeData: "Speichern",
-    storingData: "Sync...",
-    successMessage: "Gespeichert! Vielen Dank.",
-    summaryPrefix: "Mobilitätsprofil:",
+    storeData: "Daten auf OVGU-Servern speichern",
+    storingData: "Synchronisierung mit OVGU-Servern...",
+    successMessage: "Daten erfolgreich gespeichert!",
+    successDesc: "Das IMIQ Projekt dankt Ihnen für Ihre Unterstützung. Ihre Daten helfen dabei, die Stadtplanung in Magdeburg zu verbessern.",
+    summaryPrefix: "Sie haben folgendes Mobilitätsprofil im Stadtgebiet Magdeburg erstellt:",
     summaryIn: "Zusammenfassung in",
-    summaryNoTransport: "nicht angegeben",
-    summaryFooter: "Ihre Angaben tragen zur Stadtplanung bei.",
-    modeMissing: "Mehr Info",
-    helpTooltip: "Tutorial",
-    openNewTab: "In neuem Tab öffnen",
-    poiRequirement: "Bitte wählen Sie zwischen 3 und 6 Orten aus.",
-    poiTooMany: "Zu viele Orte (Max 6).",
-    poiNeeded: "Mehr Orte benötigt (Min 3).",
+    summaryNoTransport: "einem nicht angegebenen Verkehrsmittel",
+    summaryFooter: "Ihre Angaben tragen dazu bei, die Stadtplanung und Campus-Erreichbarkeit zu verbessern.",
+    summaryPointLabel: "Ort",
+    modeMissing: "Modus fehlt",
+    done: "Fertig",
     modes: {
       [TransportMode.WALKING]: "Zu Fuß",
       [TransportMode.CYCLING]: "Fahrrad",
@@ -178,39 +160,63 @@ export const TRANSLATIONS: Record<Language, Translations> = {
       [TransportMode.MOTORBIKE]: "Motorrad",
       [TransportMode.TAXI]: "Taxi",
       [TransportMode.CARSHARING]: "Car-Sharing",
-      [TransportMode.BIKESHARING]: "Bike-Sharing"
+      [TransportMode.BIKESHARING]: "Leihrad"
     },
     frequencies: ["Gelegentlich", "2-3 Tage", "4-5 Tage", "Täglich"],
+    layerStandard: "Standard",
+    layer3D: "3D Gebäude",
+    layerNight: "Nachtansicht",
     tutorialNext: "Weiter",
-    tutorialClose: "Ende",
-    tutorialStart: "Los",
-    tutorialFinish: "Ok!",
+    tutorialClose: "Tutorial überspringen",
+    tutorialStart: "Los geht's",
+    tutorialFinish: "Verstanden!",
     tutorialSteps: [
       {
         title: "Willkommen!",
-        description: "Markieren Sie 3 bis 6 Orte in Magdeburg, an denen Sie regelmäßig Zeit verbringen (z.B. Arbeit, Zuhause).",
-        icon: "🏢"
+        description: "Helfen Sie uns, die Mobilitätsgewohnheiten in Magdeburg zu verstehen, indem Sie Ihre meistbesuchten Orte markieren.",
+        icon: "👋"
       },
       {
-        title: "Orte finden",
-        description: "Nutzen Sie die Suche für Adressen oder klicken Sie direkt auf die Karte, um einen Pin zu setzen.",
+        title: "Orte suchen",
+        description: "Suchen Sie nach Adressen oder Gebäuden streng innerhalb der Stadtgrenzen von Magdeburg.",
         icon: "🔍"
       },
       {
-        title: "Stadtgrenze",
-        description: "Die hellblaue Linie zeigt die Stadtgrenzen. Bitte wählen Sie Orte innerhalb dieser Grenzen.",
-        icon: "🏙️"
+        title: "Karte markieren",
+        description: "Klicken Sie direkt auf die Karte, um Stecknadeln zu setzen. Mehrere Punkte können gleichzeitig bestätigt werden.",
+        icon: "📍"
       },
       {
-        title: "Ziehen & Ablegen",
-        description: "Ziehen Sie die Verkehrsmittel-Icons von unten auf Ihre Orte in der Seitenleiste.",
+        title: "Verkehrsmittel",
+        description: "Ziehen Sie die Symbole aus der Fußzeile auf Ihre Orte, um anzugeben, wie Sie dorthin gelangen.",
         icon: "🚲"
       },
       {
-        title: "Fast fertig",
-        description: "Stellen Sie sicher, dass alle 3-6 Orte ein Verkehrsmittel und eine Häufigkeit haben.",
+        title: "Ansichtsmodi",
+        description: "Wechseln Sie zwischen 2D-, 3D-Ansichten, um Gebäude und Orientierungspunkte besser zu erkennen.",
+        icon: "🏢"
+      },
+      {
+        title: "Abschließen",
+        description: "Wenn Sie Ihre wichtigsten Standorte hinzugefügt haben, klicken Sie auf 'Alle Auswahl bestätigen'.",
         icon: "✅"
       }
     ]
   }
+};
+
+export const TRANSPORT_ICONS: Record<TransportMode, string> = {
+  [TransportMode.WALKING]: "🚶",
+  [TransportMode.CYCLING]: "🚲",
+  [TransportMode.E_BIKE]: "⚡🚲",
+  [TransportMode.TRAM]: "🚃",
+  [TransportMode.BUS]: "🚌",
+  [TransportMode.CAR_DRIVER]: "🚗",
+  [TransportMode.CAR_PASSENGER]: "🚙",
+  [TransportMode.E_SCOOTER]: "🛴",
+  [TransportMode.TRAIN]: "🚆",
+  [TransportMode.MOTORBIKE]: "🏍️",
+  [TransportMode.TAXI]: "🚕",
+  [TransportMode.CARSHARING]: "🏢🚗",
+  [TransportMode.BIKESHARING]: "🏢🚲"
 };

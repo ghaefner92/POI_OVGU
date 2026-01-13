@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Language } from '../types';
+import { BRAND_MAROON } from '../constants';
 
 interface LanguageSwitchProps {
   current: Language;
@@ -9,19 +10,19 @@ interface LanguageSwitchProps {
 
 const LanguageSwitch: React.FC<LanguageSwitchProps> = ({ current, onChange }) => {
   return (
-    <div className="flex bg-slate-50/50 backdrop-blur rounded-2xl shadow-inner border border-slate-100 p-1.5 gap-1.5">
+    <div className="flex bg-white rounded-lg shadow-sm border p-1 gap-1">
       <button
         onClick={() => onChange(Language.EN)}
-        className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest ${
-          current === Language.EN ? 'bg-white text-[#93132B] shadow-sm' : 'text-slate-400 hover:text-slate-600'
+        className={`px-3 py-1 rounded-md text-xs font-bold transition ${
+          current === Language.EN ? 'bg-[#93132B] text-white shadow-sm' : 'text-gray-400 hover:bg-gray-50'
         }`}
       >
         EN
       </button>
       <button
         onClick={() => onChange(Language.DE)}
-        className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all uppercase tracking-widest ${
-          current === Language.DE ? 'bg-white text-[#93132B] shadow-sm' : 'text-slate-400 hover:text-slate-600'
+        className={`px-3 py-1 rounded-md text-xs font-bold transition ${
+          current === Language.DE ? 'bg-[#93132B] text-white shadow-sm' : 'text-gray-400 hover:bg-gray-50'
         }`}
       >
         DE

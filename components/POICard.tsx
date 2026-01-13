@@ -35,7 +35,6 @@ const POICard: React.FC<POICardProps> = ({
   });
 
   const t = TRANSLATIONS[lang];
-  const isComplete = poi.transportMode !== null;
 
   useEffect(() => {
     setTempName(poi.name);
@@ -44,9 +43,9 @@ const POICard: React.FC<POICardProps> = ({
   useEffect(() => {
     if (isEditing) {
       const timer = setTimeout(() => {
-        cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         inputRef.current?.focus();
-      }, 100);
+      }, 50);
       return () => clearTimeout(timer);
     }
   }, [isEditing]);
@@ -68,81 +67,78 @@ const POICard: React.FC<POICardProps> = ({
         cardRef.current = node;
       }}
       onClick={!isEditing ? onEditToggle : undefined}
-      className={`p-5 rounded-[1.75rem] border-l-[6px] transition-all duration-300 relative group cursor-pointer animate-in slide-in-from-left-4 ${
-        isOver ? 'bg-[#93132B08] scale-[1.02] border-[#93132B]' : 'bg-white shadow-[0_4px_20px_rgb(0,0,0,0.03)] border-transparent'
-      } ${isEditing ? 'ring-2 ring-[#93132B10] shadow-[0_15px_40px_rgba(0,0,0,0.08)] z-10' : 'hover:shadow-[0_8px_25px_rgba(0,0,0,0.05)]'} ${
-        isComplete ? 'border-l-green-500' : 'border-l-orange-300'
-      }`}
+      className={`p-5 rounded-[1.5rem] border-2 transition-all duration-300 relative group cursor-pointer ${
+        isOver ? 'border-[#93132B] bg-[#93132B08] scale-[1.02]' : 'border-gray-50 bg-white'
+      } ${isEditing ? 'ring-4 ring-[#93132B15] border-[#93132B] shadow-xl z-10' : 'shadow-sm hover:shadow-md hover:border-gray-200'}`}
     >
       <button
         onClick={(e) => { e.stopPropagation(); onRemove(poi.id); }}
-        className="absolute top-4 right-4 text-slate-300 hover:text-red-500 transition-all z-20"
+        className="absolute top-4 right-4 text-gray-300 hover:text-red-500 transition-colors z-20"
       >
-        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
       </button>
 
-      <div className="flex items-center justify-between mb-4 pr-6">
-        <div className="flex-1 overflow-hidden mr-2">
-          {isEditing ? (
-            <div className="flex items-center gap-2">
-              <input
-                ref={inputRef}
-                type="text"
-                value={tempName}
-                onClick={(e) => e.stopPropagation()}
-                onChange={(e) => setTempName(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSave()}
-                className="w-full font-bold text-slate-800 border-b border-[#93132B] focus:outline-none bg-transparent py-0.5 text-base"
-              />
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <h3 className="font-bold text-slate-800 truncate text-base">{poi.name}</h3>
-              {!isComplete && (
-                <span className="shrink-0 text-[8px] font-black uppercase tracking-tighter bg-orange-100 text-orange-600 px-1.5 py-0.5 rounded-full animate-pulse">
-                   {t.modeMissing}
-                </span>
-              )}
-            </div>
-          )}
-        </div>
+      <div className="pr-8 mb-4">
+        {isEditing ? (
+          <div className="flex gap-2">
+            <input
+              ref={inputRef}
+              type="text"
+              value={tempName}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => setTempName(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSave()}
+              className="w-full font-bold text-[#1a1a1a] border-b-2 border-[#93132B] focus:outline-none bg-transparent py-1"
+            />
+            <button onClick={(e) => { e.stopPropagation(); handleSave(); }} className="text-green-500 hover:scale-110 transition-transform">
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+            </button>
+          </div>
+        ) : (
+          <h3 className="font-bold text-[#1a1a1a] truncate transition-colors flex items-center gap-2">
+            <span className={isEditing ? 'text-[#93132B]' : ''}>{poi.name}</span>
+            <svg className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+          </h3>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4" onClick={(e) => e.stopPropagation()}>
-        <div className="space-y-2">
-          <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{t.frequencyLabel}</label>
-          <div className="relative">
+        <div>
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">{t.frequencyLabel}</label>
+          <div className="flex flex-col gap-2">
             <select
               value={poi.frequencyIndex}
               onChange={(e) => onFrequencyChange(poi.id, parseInt(e.target.value))}
-              className="w-full text-[10px] font-bold text-slate-600 bg-slate-50 rounded-xl pl-8 pr-2 py-2.5 border-none outline-none cursor-pointer appearance-none hover:bg-slate-100 transition-colors"
+              className="w-full text-xs font-bold text-[#1a1a1a] bg-gray-50 rounded-xl px-3 py-2 border border-gray-100 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
             >
               {t.frequencies.map((f, i) => <option key={i} value={i}>{f}</option>)}
             </select>
-            <div className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-xs">
-              {FREQUENCY_ICONS[poi.frequencyIndex]}
+            <div className={`h-8 rounded-lg border-2 border-dashed flex items-center justify-center transition-all bg-gray-50/50 border-gray-100 text-[8px] font-bold text-gray-400 gap-1`}>
+              <span>{FREQUENCY_ICONS[poi.frequencyIndex] || "⏱️"}</span>
+              <span>{t.frequencies[poi.frequencyIndex]}</span>
             </div>
           </div>
         </div>
 
-        <div className="space-y-2">
-          <label className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{t.transportLabel}</label>
-          <div className={`h-[42px] rounded-xl border-2 border-dashed flex items-center justify-center transition-all relative ${
-            poi.transportMode ? 'bg-white border-green-500/10 shadow-sm' : 'bg-slate-50 border-slate-100'
+        <div>
+          <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">{t.transportLabel}</label>
+          <div className={`h-full min-h-[4rem] rounded-xl border-2 border-dashed flex items-center justify-center transition-all relative ${
+            poi.transportMode ? 'bg-[#93132B05] border-[#93132B30]' : 'bg-gray-50 border-gray-100'
           }`}>
             {poi.transportMode ? (
-              <div className="flex items-center gap-2 animate-in fade-in zoom-in-95 px-2 w-full">
-                <span className="text-lg">{TRANSPORT_ICONS[poi.transportMode]}</span>
-                <span className="text-[9px] font-black text-slate-700 uppercase truncate flex-1">{t.modes[poi.transportMode]}</span>
+              <div className="flex flex-col items-center gap-1 animate-in fade-in zoom-in-75 p-2">
+                <span className="text-2xl">{TRANSPORT_ICONS[poi.transportMode]}</span>
+                <span className="text-[10px] font-black text-[#93132B] uppercase truncate max-w-[80px] text-center">{t.modes[poi.transportMode]}</span>
                 <button 
                   onClick={(e) => { e.stopPropagation(); onClearTransport(); }}
-                  className="p-1 text-slate-300 hover:text-red-500 transition-colors"
+                  className="absolute -top-2 -right-2 bg-white border shadow-sm rounded-full p-0.5 hover:text-red-500 transition-colors"
+                  title={t.resetTransport}
                 >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
             ) : (
-              <span className="text-[8px] text-slate-400 font-black uppercase tracking-tighter text-center px-1 leading-none">{t.dragHint}</span>
+              <span className="text-[9px] text-gray-400 font-bold px-2 leading-tight text-center">{t.dragHint}</span>
             )}
           </div>
         </div>

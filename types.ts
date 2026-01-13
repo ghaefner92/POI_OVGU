@@ -1,3 +1,4 @@
+
 export enum Language {
   DE = 'de',
   EN = 'en'
@@ -19,13 +20,18 @@ export enum TransportMode {
   BIKESHARING = 'BIKESHARING'
 }
 
+export enum MapLayer {
+  STANDARD = 'f4_2d',
+  BUILDINGS_3D = 'f4_3d'
+}
+
 export interface POI {
   id: string;
   name: string;
   lat: number;
   lng: number;
   transportMode: TransportMode | null;
-  frequencyIndex: number; // Stored as index to allow language-switching of display values
+  frequencyIndex: number; 
 }
 
 export interface PendingMarker {
@@ -58,18 +64,19 @@ export interface Translations {
   storeData: string;
   storingData: string;
   successMessage: string;
+  successDesc: string;
   summaryPrefix: string;
   summaryIn: string;
   summaryNoTransport: string;
   summaryFooter: string;
+  summaryPointLabel: string;
   modeMissing: string;
-  helpTooltip: string;
-  openNewTab: string;
-  poiRequirement: string;
-  poiTooMany: string;
-  poiNeeded: string;
+  done: string;
   modes: Record<TransportMode, string>;
   frequencies: string[];
+  layerStandard: string;
+  layer3D: string;
+  layerNight: string;
   tutorialNext: string;
   tutorialClose: string;
   tutorialStart: string;
