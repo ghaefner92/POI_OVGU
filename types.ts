@@ -20,11 +20,6 @@ export enum TransportMode {
   BIKESHARING = 'BIKESHARING'
 }
 
-export enum MapLayer {
-  STANDARD = 'f4_2d',
-  BUILDINGS_3D = 'f4_3d'
-}
-
 export interface POI {
   id: string;
   name: string;
@@ -74,9 +69,6 @@ export interface Translations {
   done: string;
   modes: Record<TransportMode, string>;
   frequencies: string[];
-  layerStandard: string;
-  layer3D: string;
-  layerNight: string;
   tutorialNext: string;
   tutorialClose: string;
   tutorialStart: string;

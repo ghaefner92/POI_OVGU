@@ -1,23 +1,16 @@
 
-import { Language, TransportMode, Translations, MapLayer } from './types';
+import { Language, TransportMode, Translations } from './types';
 import L from 'leaflet';
 
 export const MAGDEBURG_CENTER: [number, number] = [52.1307, 11.6250];
 export const BRAND_MAROON = "#93132B"; 
 
-// Precise bounds for Sachsen-Anhalt to prevent unnecessary data loading
 export const SACHSEN_ANHALT_BOUNDS = L.latLngBounds(
-  L.latLng(50.9, 10.5), // Southwest
-  L.latLng(53.07, 13.2)  // Northeast
+  L.latLng(50.9, 10.5), 
+  L.latLng(53.1, 13.2)  
 );
 
-// Viewbox for Nominatim search optimization (Left, Top, Right, Bottom)
-export const NOMINATIM_VIEWBOX = "10.5,53.07,13.2,50.9";
-
-export const LAYER_ICONS: Record<MapLayer, string> = {
-  [MapLayer.STANDARD]: "🗺️",
-  [MapLayer.BUILDINGS_3D]: "🏢"
-};
+export const NOMINATIM_VIEWBOX = "10.5,53.1,13.2,50.9";
 
 export const FREQUENCY_ICONS: Record<number, string> = {
   0: "⏱️", 
@@ -26,7 +19,6 @@ export const FREQUENCY_ICONS: Record<number, string> = {
   3: "🔥"  
 };
 
-// Simplified GeoJSON for Sachsen-Anhalt border
 export const SACHSEN_ANHALT_GEOJSON: any = {
   "type": "Feature",
   "properties": { "name": "Sachsen-Anhalt" },
@@ -42,7 +34,6 @@ export const SACHSEN_ANHALT_GEOJSON: any = {
   }
 };
 
-// World mask to darken everything outside Sachsen-Anhalt
 export const WORLD_MASK_GEOJSON: any = {
   "type": "Feature",
   "geometry": {
@@ -58,36 +49,36 @@ export const TRANSLATIONS: Record<Language, Translations> = {
   [Language.EN]: {
     title: "OVGU Mobility Tracker",
     imiqProject: "IMIQ Project",
-    searchPlaceholder: "Search in Magdeburg...",
+    searchPlaceholder: "Search for places (e.g. Campus, Home, Edeka)...",
     addPoi: "Add POI",
-    addedPois: "Your Frequented Locations",
-    dragHint: "Drag transport mode here",
-    saveData: "Confirm All Selections",
-    noPois: "Click map or search to add places.",
+    addedPois: "Your Weekly Routine",
+    dragHint: "Tap a location to set details",
+    saveData: "Submit Mobility Profile",
+    noPois: "Identify 3 to 6 locations you visit regularly during a normal week.",
     frequencyLabel: "Weekly Frequency",
-    transportLabel: "Main Transport Mode",
-    finalizeTitle: "Mobility Summary",
-    finalizeDesc: "Please review the summary of your mobility habits before submitting.",
-    confirmSelection: "Confirm Locations",
-    clearSelection: "Cancel",
+    transportLabel: "Primary Transport Mode",
+    finalizeTitle: "Summary of Habits",
+    finalizeDesc: "Please review your profile before final submission.",
+    confirmSelection: "Add to Profile",
+    clearSelection: "Discard",
     pendingCount: "points marked",
-    processing: "Identifying locations...",
-    clearAll: "Reset Map",
-    clearAllConfirm: "This will remove all your added locations. Continue?",
-    cancel: "Go Back",
-    confirm: "Yes, Reset",
-    resetTransport: "Reset transport",
-    storeData: "Store data",
-    storingData: "Syncing...",
-    successMessage: "Data saved!",
-    successDesc: "Thank you for supporting the IMIQ Project.",
-    summaryPrefix: "Your mobility profile in Magdeburg:",
-    summaryIn: "Summary in",
-    summaryNoTransport: "unspecified transport",
-    summaryFooter: "Your input helps improve urban planning.",
-    summaryPointLabel: "Location",
-    modeMissing: "Mode missing",
-    done: "Done",
+    processing: "Identifying...",
+    clearAll: "Reset",
+    clearAllConfirm: "Are you sure you want to clear your current profile?",
+    cancel: "Back",
+    confirm: "Reset",
+    resetTransport: "Clear mode",
+    storeData: "Submit to OVGU Research",
+    storingData: "Uploading habits...",
+    successMessage: "Submission Complete!",
+    successDesc: "Your mobility data has been recorded. This contributes directly to improving infrastructure and planning in Magdeburg. Thank you!",
+    summaryPrefix: "Your current mobility profile for the Magdeburg region:",
+    summaryIn: "Habits in",
+    summaryNoTransport: "undefined transport mode",
+    summaryFooter: "Your input is critical for urban and campus development.",
+    summaryPointLabel: "Point",
+    modeMissing: "Mode not set",
+    done: "Finish",
     modes: {
       [TransportMode.WALKING]: "Walking",
       [TransportMode.CYCLING]: "Cycling",
@@ -97,56 +88,76 @@ export const TRANSLATIONS: Record<Language, Translations> = {
       [TransportMode.CAR_DRIVER]: "Car (Driver)",
       [TransportMode.CAR_PASSENGER]: "Car (Passenger)",
       [TransportMode.E_SCOOTER]: "E-Scooter",
-      [TransportMode.TRAIN]: "Train",
+      [TransportMode.TRAIN]: "Train/S-Bahn",
       [TransportMode.MOTORBIKE]: "Motorbike",
       [TransportMode.TAXI]: "Taxi",
       [TransportMode.CARSHARING]: "Car Sharing",
       [TransportMode.BIKESHARING]: "Bike Sharing"
     },
-    frequencies: ["Occasionally", "2-3 days", "4-5 days", "Daily"],
-    layerStandard: "Standard",
-    layer3D: "3D View",
-    layerNight: "Night View",
+    frequencies: ["Occasionally", "2-3 days/week", "4-5 days/week", "Daily"],
     tutorialNext: "Next",
     tutorialClose: "Skip",
-    tutorialStart: "Start",
-    tutorialFinish: "Done",
+    tutorialStart: "Start Now",
+    tutorialFinish: "Ready!",
     tutorialSteps: [
-      { title: "Welcome!", description: "Help us understand mobility in Magdeburg.", icon: "👋" },
-      { title: "Add Places", description: "Search or click on the map.", icon: "📍" }
+      {
+        title: "Your Weekly Goal",
+        description: "Mark between 3 and 6 locations that define your normal week. Think of: Home, University (Campus), Workplace, Gym, or your favorite Grocery Store.",
+        icon: "🎯"
+      },
+      {
+        title: "Locate & Mark",
+        description: "Search for a specific name or click directly on the map. You can mark multiple points at once and then confirm them.",
+        icon: "📍"
+      },
+      {
+        title: "Quick Habit Slot",
+        description: "Once a location is added, tap its marker or card. A 'Quick Action' menu will pop up to let you set your Transport Mode and Frequency in seconds.",
+        icon: "⚡"
+      },
+      {
+        title: "Be Precise",
+        description: "For each place, choose the mode you use most often. Does it change? Pick the one you used last week!",
+        icon: "🚲"
+      },
+      {
+        title: "Finish the Task",
+        description: "Once you have at least 3 locations fully detailed, hit the 'Submit' button. Quality data helps us build a better Magdeburg.",
+        icon: "📤"
+      }
     ]
   },
   [Language.DE]: {
     title: "OVGU Mobilitäts-Tracker",
     imiqProject: "IMIQ Projekt",
-    searchPlaceholder: "In Magdeburg suchen...",
+    searchPlaceholder: "Orte suchen (z.B. Campus, Wohnung, Edeka)...",
     addPoi: "Ort hinzufügen",
-    addedPois: "Ihre Ziele",
-    dragHint: "Verkehrsmittel hierher ziehen",
-    saveData: "Alle Auswahl bestätigen",
-    noPois: "Klicken Sie auf die Karte oder suchen Sie einen Ort.",
+    addedPois: "Ihre wöchentliche Routine",
+    dragHint: "Tippen Sie zum Bearbeiten",
+    saveData: "Mobilitätsprofil absenden",
+    noPois: "Markieren Sie 3 bis 6 Orte, die Sie in einer normalen Woche regelmäßig besuchen.",
     frequencyLabel: "Wöchentliche Häufigkeit",
     transportLabel: "Hauptverkehrsmittel",
-    finalizeTitle: "Mobilitäts-Zusammenfassung",
-    finalizeDesc: "Bitte überprüfen Sie Ihre Angaben vor dem Absenden.",
-    confirmSelection: "Orte bestätigen",
-    clearSelection: "Abbrechen",
+    finalizeTitle: "Zusammenfassung",
+    finalizeDesc: "Bitte überprüfen Sie Ihr Profil vor der endgültigen Übermittlung.",
+    confirmSelection: "Zum Profil hinzufügen",
+    clearSelection: "Verwerfen",
     pendingCount: "Punkte markiert",
-    processing: "Orte werden bestimmt...",
-    clearAll: "Karte zurücksetzen",
-    clearAllConfirm: "Möchten Sie wirklich alle Punkte entfernen?",
-    cancel: "Abbrechen",
-    confirm: "Ja, zurücksetzen",
-    resetTransport: "Verkehrsmittel löschen",
-    storeData: "Daten speichern",
-    storingData: "Synchronisierung...",
-    successMessage: "Daten gespeichert!",
-    successDesc: "Vielen Dank für Ihre Unterstützung.",
-    summaryPrefix: "Ihr Mobilitätsprofil in Magdeburg:",
+    processing: "Wird bestimmt...",
+    clearAll: "Zurücksetzen",
+    clearAllConfirm: "Möchten Sie Ihr aktuelles Profil wirklich löschen?",
+    cancel: "Zurück",
+    confirm: "Löschen",
+    resetTransport: "Modus löschen",
+    storeData: "An OVGU-Forschung senden",
+    storingData: "Daten werden übertragen...",
+    successMessage: "Übermittlung erfolgreich!",
+    successDesc: "Ihre Mobilitätsdaten wurden aufgezeichnet. Dies hilft direkt dabei, die Infrastruktur in Magdeburg zu verbessern. Vielen Dank!",
+    summaryPrefix: "Ihr aktuelles Mobilitätsprofil für die Region Magdeburg:",
     summaryIn: "Zusammenfassung in",
-    summaryNoTransport: "nicht angegebenem Verkehrsmittel",
-    summaryFooter: "Ihre Angaben helfen der Stadtplanung.",
-    summaryPointLabel: "Ort",
+    summaryNoTransport: "nicht angegebenes Verkehrsmittel",
+    summaryFooter: "Ihre Angaben sind entscheidend für die Stadt- und Campusentwicklung.",
+    summaryPointLabel: "Punkt",
     modeMissing: "Modus fehlt",
     done: "Fertig",
     modes: {
@@ -158,23 +169,43 @@ export const TRANSLATIONS: Record<Language, Translations> = {
       [TransportMode.CAR_DRIVER]: "Auto (Fahrer)",
       [TransportMode.CAR_PASSENGER]: "Auto (Beifahrer)",
       [TransportMode.E_SCOOTER]: "E-Scooter",
-      [TransportMode.TRAIN]: "Zug",
+      [TransportMode.TRAIN]: "Zug/S-Bahn",
       [TransportMode.MOTORBIKE]: "Motorrad",
       [TransportMode.TAXI]: "Taxi",
       [TransportMode.CARSHARING]: "Car-Sharing",
       [TransportMode.BIKESHARING]: "Leihrad"
     },
-    frequencies: ["Gelegentlich", "2-3 Tage", "4-5 Tage", "Täglich"],
-    layerStandard: "Standard",
-    layer3D: "3D Gebäude",
-    layerNight: "Nachtansicht",
+    frequencies: ["Gelegentlich", "2-3 Tage/Woche", "4-5 Tage/Woche", "Täglich"],
     tutorialNext: "Weiter",
     tutorialClose: "Überspringen",
-    tutorialStart: "Start",
-    tutorialFinish: "Verstanden!",
+    tutorialStart: "Jetzt starten",
+    tutorialFinish: "Bereit!",
     tutorialSteps: [
-      { title: "Willkommen!", description: "Helfen Sie uns, die Mobilität zu verstehen.", icon: "👋" },
-      { title: "Orte hinzufügen", description: "Suche nutzen oder Karte anklicken.", icon: "📍" }
+      {
+        title: "Ihr Wochen-Ziel",
+        description: "Markieren Sie 3 bis 6 Orte Ihrer normalen Woche. Denken Sie an: Wohnung, Universität, Arbeitsplatz, Fitnessstudio oder Ihren Supermarkt.",
+        icon: "🎯"
+      },
+      {
+        title: "Suchen & Markieren",
+        description: "Suchen Sie nach Namen oder klicken Sie direkt in die Karte. Sie können mehrere Punkte gleichzeitig markieren und dann bestätigen.",
+        icon: "📍"
+      },
+      {
+        title: "Schnell-Auswahl",
+        description: "Tippen Sie auf einen Marker oder eine Karte. Ein HUD-Menü erscheint, in dem Sie Modus und Häufigkeit sofort festlegen können.",
+        icon: "⚡"
+      },
+      {
+        title: "Präzision zählt",
+        description: "Wählen Sie für jeden Ort das Verkehrsmittel, das Sie am häufigsten nutzen. Nutzen Sie das, was Sie letzte Woche verwendet haben!",
+        icon: "🚲"
+      },
+      {
+        title: "Abschließen",
+        description: "Sobald Sie mindestens 3 Orte mit Details versehen haben, klicken Sie auf 'Absenden'. Ihre Daten helfen Magdeburg!",
+        icon: "📤"
+      }
     ]
   }
 };
