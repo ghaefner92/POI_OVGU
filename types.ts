@@ -20,25 +20,23 @@ export enum TransportMode {
   BIKESHARING = 'BIKESHARING'
 }
 
+export enum MapLayer {
+  STANDARD = 'f4_2d',
+  BUILDINGS_3D = 'f4_3d'
+}
+
 export interface POI {
   id: string;
   name: string;
   lat: number;
   lng: number;
   transportMode: TransportMode | null;
-  frequency: string;
+  frequencyIndex: number; 
 }
 
 export interface PendingMarker {
   lat: number;
   lng: number;
-}
-
-// Added TutorialStep interface for the Tutorial component structure
-export interface TutorialStep {
-  icon: string;
-  title: string;
-  description: string;
 }
 
 export interface Translations {
@@ -66,14 +64,26 @@ export interface Translations {
   storeData: string;
   storingData: string;
   successMessage: string;
+  successDesc: string;
   summaryPrefix: string;
+  summaryIn: string;
+  summaryNoTransport: string;
   summaryFooter: string;
+  summaryPointLabel: string;
+  modeMissing: string;
+  done: string;
   modes: Record<TransportMode, string>;
   frequencies: string[];
-  // Added missing tutorial translations to prevent runtime errors in Tutorial.tsx
-  tutorialStart: string;
+  layerStandard: string;
+  layer3D: string;
+  layerNight: string;
   tutorialNext: string;
-  tutorialFinish: string;
   tutorialClose: string;
-  tutorialSteps: TutorialStep[];
+  tutorialStart: string;
+  tutorialFinish: string;
+  tutorialSteps: {
+    title: string;
+    description: string;
+    icon: string;
+  }[];
 }
