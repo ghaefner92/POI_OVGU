@@ -5,12 +5,14 @@ import L from 'leaflet';
 export const MAGDEBURG_CENTER: [number, number] = [52.1307, 11.6250];
 export const BRAND_MAROON = "#93132B"; 
 
+// Precise bounds for Sachsen-Anhalt to prevent unnecessary data loading
 export const SACHSEN_ANHALT_BOUNDS = L.latLngBounds(
-  L.latLng(52.03, 11.45), 
-  L.latLng(52.23, 11.78)  
+  L.latLng(50.9, 10.5), // Southwest
+  L.latLng(53.07, 13.2)  // Northeast
 );
 
-export const NOMINATIM_VIEWBOX = "11.45,52.23,11.78,52.03";
+// Viewbox for Nominatim search optimization (Left, Top, Right, Bottom)
+export const NOMINATIM_VIEWBOX = "10.5,53.07,13.2,50.9";
 
 export const LAYER_ICONS: Record<MapLayer, string> = {
   [MapLayer.STANDARD]: "🗺️",
@@ -24,16 +26,44 @@ export const FREQUENCY_ICONS: Record<number, string> = {
   3: "🔥"  
 };
 
+// Simplified GeoJSON for Sachsen-Anhalt border
+export const SACHSEN_ANHALT_GEOJSON: any = {
+  "type": "Feature",
+  "properties": { "name": "Sachsen-Anhalt" },
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [[
+      [11.53, 53.05], [11.83, 53.03], [12.21, 53.01], [12.44, 52.89], [12.65, 52.92],
+      [12.98, 52.81], [13.12, 52.55], [13.01, 52.19], [12.82, 52.05], [12.95, 51.72],
+      [12.71, 51.52], [12.42, 51.55], [12.31, 51.22], [12.05, 50.98], [11.72, 51.02],
+      [11.51, 50.92], [11.22, 51.12], [10.88, 51.42], [10.62, 51.55], [10.55, 51.82],
+      [10.82, 51.98], [10.65, 52.22], [10.92, 52.52], [11.22, 52.82], [11.53, 53.05]
+    ]]
+  }
+};
+
+// World mask to darken everything outside Sachsen-Anhalt
+export const WORLD_MASK_GEOJSON: any = {
+  "type": "Feature",
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+      [[-180, -90], [-180, 90], [180, 90], [180, -90], [-180, -90]],
+      SACHSEN_ANHALT_GEOJSON.geometry.coordinates[0]
+    ]
+  }
+};
+
 export const TRANSLATIONS: Record<Language, Translations> = {
   [Language.EN]: {
     title: "OVGU Mobility Tracker",
     imiqProject: "IMIQ Project",
-    searchPlaceholder: "Search for places in Magdeburg...",
+    searchPlaceholder: "Search in Magdeburg...",
     addPoi: "Add POI",
     addedPois: "Your Frequented Locations",
     dragHint: "Drag transport mode here",
     saveData: "Confirm All Selections",
-    noPois: "Click the map or search for a place in Magdeburg.",
+    noPois: "Click map or search to add places.",
     frequencyLabel: "Weekly Frequency",
     transportLabel: "Main Transport Mode",
     finalizeTitle: "Mobility Summary",
@@ -47,14 +77,14 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     cancel: "Go Back",
     confirm: "Yes, Reset",
     resetTransport: "Reset transport",
-    storeData: "Store data in OVGU servers",
-    storingData: "Syncing with OVGU servers...",
-    successMessage: "Data successfully stored!",
-    successDesc: "The IMIQ Project thanks you for your support. Your data will help improve urban planning in Magdeburg.",
-    summaryPrefix: "You have selected the following mobility profile in the Magdeburg area:",
+    storeData: "Store data",
+    storingData: "Syncing...",
+    successMessage: "Data saved!",
+    successDesc: "Thank you for supporting the IMIQ Project.",
+    summaryPrefix: "Your mobility profile in Magdeburg:",
     summaryIn: "Summary in",
-    summaryNoTransport: "an unspecified mode of transport",
-    summaryFooter: "Your input will help improve urban planning and campus accessibility.",
+    summaryNoTransport: "unspecified transport",
+    summaryFooter: "Your input helps improve urban planning.",
     summaryPointLabel: "Location",
     modeMissing: "Mode missing",
     done: "Done",
@@ -67,7 +97,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
       [TransportMode.CAR_DRIVER]: "Car (Driver)",
       [TransportMode.CAR_PASSENGER]: "Car (Passenger)",
       [TransportMode.E_SCOOTER]: "E-Scooter",
-      [TransportMode.TRAIN]: "Train/S-Bahn",
+      [TransportMode.TRAIN]: "Train",
       [TransportMode.MOTORBIKE]: "Motorbike",
       [TransportMode.TAXI]: "Taxi",
       [TransportMode.CARSHARING]: "Car Sharing",
@@ -75,75 +105,47 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     },
     frequencies: ["Occasionally", "2-3 days", "4-5 days", "Daily"],
     layerStandard: "Standard",
-    layer3D: "3D Buildings",
+    layer3D: "3D View",
     layerNight: "Night View",
     tutorialNext: "Next",
-    tutorialClose: "Skip Tutorial",
-    tutorialStart: "Let's Start",
-    tutorialFinish: "Got it!",
+    tutorialClose: "Skip",
+    tutorialStart: "Start",
+    tutorialFinish: "Done",
     tutorialSteps: [
-      {
-        title: "Welcome!",
-        description: "Help us understand mobility habits in Magdeburg by marking the places you visit most often.",
-        icon: "👋"
-      },
-      {
-        title: "Search Locations",
-        description: "Search for specific addresses or buildings strictly within the city limits of Magdeburg.",
-        icon: "🔍"
-      },
-      {
-        title: "Mark the Map",
-        description: "You can also click directly on the map to drop a pin. Multiple pins can be confirmed at once!",
-        icon: "📍"
-      },
-      {
-        title: "Transport Modes",
-        description: "Drag the icons from the footer and drop them onto your locations to specify how you get there.",
-        icon: "🚲"
-      },
-      {
-        title: "View Modes",
-        description: "Toggle between 2D, 3D views to better recognize buildings and landmarks.",
-        icon: "🏢"
-      },
-      {
-        title: "Finalize",
-        description: "Once you've added your key locations, click 'Confirm All Selections' to submit your data.",
-        icon: "✅"
-      }
+      { title: "Welcome!", description: "Help us understand mobility in Magdeburg.", icon: "👋" },
+      { title: "Add Places", description: "Search or click on the map.", icon: "📍" }
     ]
   },
   [Language.DE]: {
     title: "OVGU Mobilitäts-Tracker",
     imiqProject: "IMIQ Projekt",
-    searchPlaceholder: "Suche nach Orten in Magdeburg...",
+    searchPlaceholder: "In Magdeburg suchen...",
     addPoi: "Ort hinzufügen",
     addedPois: "Ihre Ziele",
     dragHint: "Verkehrsmittel hierher ziehen",
     saveData: "Alle Auswahl bestätigen",
-    noPois: "Klicken Sie auf die Karte oder suchen Sie einen Ort in Magdeburg.",
+    noPois: "Klicken Sie auf die Karte oder suchen Sie einen Ort.",
     frequencyLabel: "Wöchentliche Häufigkeit",
     transportLabel: "Hauptverkehrsmittel",
     finalizeTitle: "Mobilitäts-Zusammenfassung",
-    finalizeDesc: "Bitte überprüfen Sie die Zusammenfassung Ihrer Mobilitätsgewohnheiten vor dem Absenden.",
+    finalizeDesc: "Bitte überprüfen Sie Ihre Angaben vor dem Absenden.",
     confirmSelection: "Orte bestätigen",
     clearSelection: "Abbrechen",
     pendingCount: "Punkte markiert",
     processing: "Orte werden bestimmt...",
     clearAll: "Karte zurücksetzen",
-    clearAllConfirm: "Möchten Sie wirklich alle Punkte entfernen? Dies kann nicht rückgängig gemacht werden.",
+    clearAllConfirm: "Möchten Sie wirklich alle Punkte entfernen?",
     cancel: "Abbrechen",
     confirm: "Ja, zurücksetzen",
     resetTransport: "Verkehrsmittel löschen",
-    storeData: "Daten auf OVGU-Servern speichern",
-    storingData: "Synchronisierung mit OVGU-Servern...",
-    successMessage: "Daten erfolgreich gespeichert!",
-    successDesc: "Das IMIQ Projekt dankt Ihnen für Ihre Unterstützung. Ihre Daten helfen dabei, die Stadtplanung in Magdeburg zu verbessern.",
-    summaryPrefix: "Sie haben folgendes Mobilitätsprofil im Stadtgebiet Magdeburg erstellt:",
+    storeData: "Daten speichern",
+    storingData: "Synchronisierung...",
+    successMessage: "Daten gespeichert!",
+    successDesc: "Vielen Dank für Ihre Unterstützung.",
+    summaryPrefix: "Ihr Mobilitätsprofil in Magdeburg:",
     summaryIn: "Zusammenfassung in",
-    summaryNoTransport: "einem nicht angegebenen Verkehrsmittel",
-    summaryFooter: "Ihre Angaben tragen dazu bei, die Stadtplanung und Campus-Erreichbarkeit zu verbessern.",
+    summaryNoTransport: "nicht angegebenem Verkehrsmittel",
+    summaryFooter: "Ihre Angaben helfen der Stadtplanung.",
     summaryPointLabel: "Ort",
     modeMissing: "Modus fehlt",
     done: "Fertig",
@@ -156,7 +158,7 @@ export const TRANSLATIONS: Record<Language, Translations> = {
       [TransportMode.CAR_DRIVER]: "Auto (Fahrer)",
       [TransportMode.CAR_PASSENGER]: "Auto (Beifahrer)",
       [TransportMode.E_SCOOTER]: "E-Scooter",
-      [TransportMode.TRAIN]: "Zug/S-Bahn",
+      [TransportMode.TRAIN]: "Zug",
       [TransportMode.MOTORBIKE]: "Motorrad",
       [TransportMode.TAXI]: "Taxi",
       [TransportMode.CARSHARING]: "Car-Sharing",
@@ -167,40 +169,12 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     layer3D: "3D Gebäude",
     layerNight: "Nachtansicht",
     tutorialNext: "Weiter",
-    tutorialClose: "Tutorial überspringen",
-    tutorialStart: "Los geht's",
+    tutorialClose: "Überspringen",
+    tutorialStart: "Start",
     tutorialFinish: "Verstanden!",
     tutorialSteps: [
-      {
-        title: "Willkommen!",
-        description: "Helfen Sie uns, die Mobilitätsgewohnheiten in Magdeburg zu verstehen, indem Sie Ihre meistbesuchten Orte markieren.",
-        icon: "👋"
-      },
-      {
-        title: "Orte suchen",
-        description: "Suchen Sie nach Adressen oder Gebäuden streng innerhalb der Stadtgrenzen von Magdeburg.",
-        icon: "🔍"
-      },
-      {
-        title: "Karte markieren",
-        description: "Klicken Sie direkt auf die Karte, um Stecknadeln zu setzen. Mehrere Punkte können gleichzeitig bestätigt werden.",
-        icon: "📍"
-      },
-      {
-        title: "Verkehrsmittel",
-        description: "Ziehen Sie die Symbole aus der Fußzeile auf Ihre Orte, um anzugeben, wie Sie dorthin gelangen.",
-        icon: "🚲"
-      },
-      {
-        title: "Ansichtsmodi",
-        description: "Wechseln Sie zwischen 2D-, 3D-Ansichten, um Gebäude und Orientierungspunkte besser zu erkennen.",
-        icon: "🏢"
-      },
-      {
-        title: "Abschließen",
-        description: "Wenn Sie Ihre wichtigsten Standorte hinzugefügt haben, klicken Sie auf 'Alle Auswahl bestätigen'.",
-        icon: "✅"
-      }
+      { title: "Willkommen!", description: "Helfen Sie uns, die Mobilität zu verstehen.", icon: "👋" },
+      { title: "Orte hinzufügen", description: "Suche nutzen oder Karte anklicken.", icon: "📍" }
     ]
   }
 };

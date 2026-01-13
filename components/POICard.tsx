@@ -8,6 +8,7 @@ interface POICardProps {
   poi: POI;
   lang: Language;
   isEditing: boolean;
+  isNewlyAdded?: boolean;
   onEditToggle: () => void;
   onRemove: (id: string) => void;
   onFrequencyChange: (id: string, index: number) => void;
@@ -19,6 +20,7 @@ const POICard: React.FC<POICardProps> = ({
   poi, 
   lang, 
   isEditing, 
+  isNewlyAdded,
   onEditToggle, 
   onRemove, 
   onFrequencyChange, 
@@ -41,14 +43,14 @@ const POICard: React.FC<POICardProps> = ({
   }, [poi.name]);
 
   useEffect(() => {
-    if (isEditing) {
+    if (isEditing || isNewlyAdded) {
       const timer = setTimeout(() => {
         cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        inputRef.current?.focus();
+        if (isEditing) inputRef.current?.focus();
       }, 50);
       return () => clearTimeout(timer);
     }
-  }, [isEditing]);
+  }, [isEditing, isNewlyAdded]);
 
   const handleSave = () => {
     if (tempName.trim() && tempName !== poi.name) {
@@ -69,7 +71,9 @@ const POICard: React.FC<POICardProps> = ({
       onClick={!isEditing ? onEditToggle : undefined}
       className={`p-5 rounded-[1.5rem] border-2 transition-all duration-300 relative group cursor-pointer ${
         isOver ? 'border-[#93132B] bg-[#93132B08] scale-[1.02]' : 'border-gray-50 bg-white'
-      } ${isEditing ? 'ring-4 ring-[#93132B15] border-[#93132B] shadow-xl z-10' : 'shadow-sm hover:shadow-md hover:border-gray-200'}`}
+      } ${isEditing ? 'ring-4 ring-[#93132B15] border-[#93132B] shadow-xl z-10' : 'shadow-sm hover:shadow-md hover:border-gray-200'} ${
+        isNewlyAdded ? 'animate-newly-added' : ''
+      }`}
     >
       <button
         onClick={(e) => { e.stopPropagation(); onRemove(poi.id); }}
