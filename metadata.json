@@ -1,0 +1,7 @@
+{
+  "name": "Magdeburg POI Tracker",
+  "description": "An interactive tool for tracking Points of Interest and transport habits in Magdeburg, Germany.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
