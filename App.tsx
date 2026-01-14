@@ -156,6 +156,16 @@ export default function App() {
     if (!seen) setShowTutorial(true);
   }, []);
 
+  /**
+   * Sends the final user data to the parent window (LimeSurvey)
+   */
+  const submitToLimeSurvey = (data: POI[]) => {
+    const jsonString = JSON.stringify(data);
+    // Send message to parent frame
+    window.parent.postMessage(jsonString, '*');
+    console.log("Mobility Tracker: Data successfully posted to parent frame.", jsonString);
+  };
+
   const fetchLocalPois = useCallback(async (bounds: L.LatLngBounds) => {
     setIsFetchingOverpass(true);
     const sw = bounds.getSouthWest(), ne = bounds.getNorthEast();
@@ -331,12 +341,21 @@ export default function App() {
     setPois(prev => prev.map(p => p.id === editingPoiId ? { ...p, ...updates } : p));
   };
 
+  /**
+   * Orchestrates the final save process: sets loading state, 
+   * sends data to LimeSurvey, then shows success.
+   */
   const finalizeStore = () => {
     setIsStoring(true);
+    
+    // Actually execute the submission logic
+    submitToLimeSurvey(pois);
+
+    // Visual feedback delay
     setTimeout(() => {
       setIsStoring(false);
       setIsStored(true);
-    }, 1500);
+    }, 1200);
   };
 
   const currentEditingPoi = useMemo(() => pois.find(p => p.id === editingPoiId), [pois, editingPoiId]);
