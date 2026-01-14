@@ -161,9 +161,17 @@ export default function App() {
    */
   const submitToLimeSurvey = (data: POI[]) => {
     const jsonString = JSON.stringify(data);
-    // Send message to parent frame
+    // Send structured data to parent frame
     window.parent.postMessage(jsonString, '*');
-    console.log("Mobility Tracker: Data successfully posted to parent frame.", jsonString);
+    console.log("Mobility Tracker: Final data submitted to parent window.", data);
+  };
+
+  /**
+   * Signals LimeSurvey to proceed to the next survey page
+   */
+  const handleSurveyNextPage = () => {
+    console.log("Mobility Tracker: Signaling NEXT_PAGE to parent survey.");
+    window.parent.postMessage('NEXT_PAGE', '*');
   };
 
   const fetchLocalPois = useCallback(async (bounds: L.LatLngBounds) => {
@@ -351,7 +359,7 @@ export default function App() {
     // Actually execute the submission logic
     submitToLimeSurvey(pois);
 
-    // Visual feedback delay
+    // Visual feedback delay before showing success screen
     setTimeout(() => {
       setIsStoring(false);
       setIsStored(true);
@@ -573,7 +581,12 @@ export default function App() {
                 <div className="text-6xl mb-6">🏆</div>
                 <h3 className="text-2xl font-black mb-2">{t.successMessage}</h3>
                 <p className="text-gray-500 mb-8">{t.successDesc}</p>
-                <button onClick={() => window.location.reload()} className="px-12 py-4 bg-[#1a1a1a] text-white rounded-2xl font-bold shadow-xl hover:scale-105 transition-all">Finish & Close</button>
+                <button 
+                  onClick={handleSurveyNextPage} 
+                  className="px-12 py-4 bg-[#1a1a1a] text-white rounded-2xl font-bold shadow-xl hover:scale-105 transition-all"
+                >
+                  {lang === Language.DE ? 'Umfrage fortsetzen' : 'Continue Survey'}
+                </button>
               </div>
             )}
           </div>
