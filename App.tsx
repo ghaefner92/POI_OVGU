@@ -12,7 +12,8 @@ import {
   SACHSEN_ANHALT_BOUNDS, 
   FREQUENCY_ICONS, 
   SACHSEN_ANHALT_GEOJSON,
-  WORLD_MASK_GEOJSON
+  WORLD_MASK_GEOJSON,
+  TARGET_ORIGIN
 } from './constants';
 import LanguageSwitch from './components/LanguageSwitch';
 import POICard from './components/POICard';
@@ -162,7 +163,7 @@ export default function App() {
   const submitToLimeSurvey = (data: POI[]) => {
     const jsonString = JSON.stringify(data);
     // Send structured data to parent frame
-    window.parent.postMessage(jsonString, '*');
+    window.parent.postMessage(jsonString, TARGET_ORIGIN);
     console.log("Mobility Tracker: Final data submitted to parent window.", data);
   };
 
@@ -171,7 +172,7 @@ export default function App() {
    */
   const handleSurveyNextPage = () => {
     console.log("Mobility Tracker: Signaling NEXT_PAGE to parent survey.");
-    window.parent.postMessage('NEXT_PAGE', '*');
+    window.parent.postMessage('NEXT_PAGE', TARGET_ORIGIN);
   };
 
   const fetchLocalPois = useCallback(async (bounds: L.LatLngBounds) => {
@@ -485,29 +486,43 @@ export default function App() {
           <OverpassFetcher zoom={mapZoom || 13} onFetch={fetchLocalPois} />
         </MapContainer>
 
-        {editingPoiId && (
-          <div 
-            className="absolute inset-0 z-[3999] bg-black/10 backdrop-blur-[1px] cursor-pointer" 
-            onClick={() => setEditingPoiId(null)}
-          />
+        {/* Pending Markers - Kept here relative to map */}
+        {pendingMarkers.length > 0 && (
+          <div className="absolute bottom-6 md:bottom-10 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-3 bg-white/95 backdrop-blur-xl p-3 rounded-[2rem] shadow-2xl border border-white max-w-[95%]">
+            <div className="pl-6 pr-4 border-r border-gray-100 py-2 hidden sm:block"><span className="text-2xl font-black text-[#93132B]">{pendingMarkers.length}</span><span className="ml-2 text-xs font-bold text-gray-400 uppercase tracking-widest">{t.pendingCount}</span></div>
+            <button onClick={confirmSelection} disabled={isProcessing} className="bg-[#93132B] text-white px-8 py-3 rounded-2xl font-bold hover:bg-[#7a0f24] transition-all shadow-lg min-w-[140px] whitespace-nowrap">{isProcessing ? t.processing : t.confirmSelection}</button>
+            <button onClick={() => setPendingMarkers([])} className="px-6 py-3 rounded-2xl font-bold text-gray-500 hover:bg-gray-100">{t.clearSelection}</button>
+          </div>
         )}
+      </div>
 
-        {editingPoiId && currentEditingPoi && (
-          <div className="absolute inset-x-0 bottom-0 md:inset-0 z-[4000] flex items-end justify-center pointer-events-none p-4 md:p-12">
-            <div className="w-full max-w-2xl bg-white/95 backdrop-blur-3xl rounded-t-[2.5rem] md:rounded-[2.5rem] shadow-4xl pointer-events-auto p-8 border border-white animate-in slide-in-from-bottom-32 duration-500">
-              <div className="flex items-center justify-between mb-8">
+      {/* Edit Overlay - Moved to root level for full screen mobile overlap */}
+      {editingPoiId && (
+        <div 
+          className="absolute inset-0 z-[3999] bg-black/20 backdrop-blur-[2px] cursor-pointer transition-opacity" 
+          onClick={() => setEditingPoiId(null)}
+        />
+      )}
+
+      {editingPoiId && currentEditingPoi && (
+          <div className="absolute inset-x-0 bottom-0 md:inset-0 z-[4000] flex items-end justify-center pointer-events-none p-0 md:p-12">
+            <div className="w-full max-w-2xl bg-white/95 backdrop-blur-3xl rounded-t-[2.5rem] md:rounded-[2.5rem] shadow-2xl pointer-events-auto p-6 md:p-8 border-t md:border border-white animate-in slide-in-from-bottom-32 duration-500 flex flex-col max-h-[90vh]">
+              {/* Mobile Drag Handle */}
+              <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6 md:hidden" />
+              
+              <div className="flex items-center justify-between mb-4 md:mb-8 shrink-0">
                 <div className="flex items-center gap-4">
-                  <div className="w-14 h-14 bg-[#93132B10] text-3xl flex items-center justify-center rounded-2xl">
+                  <div className="w-14 h-14 bg-[#93132B10] text-3xl flex items-center justify-center rounded-2xl shrink-0">
                     {getCategoryIcon({ category: currentEditingPoi.category })}
                   </div>
-                  <div>
-                    <h3 className="text-xl font-black text-gray-900 leading-tight">{currentEditingPoi.name}</h3>
+                  <div className="min-w-0">
+                    <h3 className="text-xl font-black text-gray-900 leading-tight truncate">{currentEditingPoi.name}</h3>
                     <p className="text-[10px] font-black text-[#93132B] uppercase tracking-widest mt-1">
                       {currentEditingPoi.transportMode ? t.modes[currentEditingPoi.transportMode] : t.modeMissing}
                     </p>
                   </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 shrink-0">
                   <button 
                     onClick={() => { setPois(p => p.filter(x => x.id !== editingPoiId)); setEditingPoiId(null); }}
                     className="w-12 h-12 bg-red-50 text-red-500 rounded-full flex items-center justify-center shadow-sm hover:bg-red-100 transition-colors"
@@ -520,26 +535,26 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="space-y-8 max-h-[35vh] md:max-h-[40vh] overflow-y-auto custom-scrollbar pr-2">
+              <div className="space-y-6 overflow-y-auto custom-scrollbar pr-1 md:pr-2 pb-safe">
                 <section>
-                  <label className="text-[9px] font-black text-gray-400 uppercase tracking-[0.3em] mb-4 block">{t.transportLabel}</label>
-                  <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-[0.3em] mb-4 block">{t.transportLabel}</label>
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
                     {Object.values(TransportMode).map(mode => (
-                      <button key={mode} onClick={() => updateActivePoi({ transportMode: mode })} className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all border-2 ${currentEditingPoi.transportMode === mode ? 'border-[#93132B] bg-[#93132B08] scale-105' : 'border-gray-50 bg-white hover:border-gray-200'}`}>
-                        <span className="text-2xl mb-1">{TRANSPORT_ICONS[mode]}</span>
-                        <span className="text-[7px] font-black text-gray-400 uppercase truncate w-full text-center leading-none">{t.modes[mode].split(' ')[0]}</span>
+                      <button key={mode} onClick={() => updateActivePoi({ transportMode: mode })} className={`flex flex-col items-center justify-center p-3 sm:p-2 rounded-xl transition-all border-2 ${currentEditingPoi.transportMode === mode ? 'border-[#93132B] bg-[#93132B08] scale-105' : 'border-gray-50 bg-white hover:border-gray-200'}`}>
+                        <span className="text-4xl sm:text-3xl mb-2 sm:mb-1">{TRANSPORT_ICONS[mode]}</span>
+                        <span className="text-xs sm:text-[9px] font-black text-gray-500 uppercase truncate w-full text-center leading-none tracking-tight">{t.modes[mode].split(' ')[0]}</span>
                       </button>
                     ))}
                   </div>
                 </section>
 
                 <section>
-                  <label className="text-[9px] font-black text-gray-400 uppercase tracking-[0.3em] mb-4 block">{t.frequencyLabel}</label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <label className="text-xs font-black text-gray-400 uppercase tracking-[0.3em] mb-4 block">{t.frequencyLabel}</label>
+                  <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-4 gap-2">
                     {t.frequencies.map((label, idx) => (
-                      <button key={idx} onClick={() => updateActivePoi({ frequencyIndex: idx })} className={`flex items-center gap-2 p-3 rounded-xl transition-all border-2 ${currentEditingPoi.frequencyIndex === idx ? 'border-blue-500 bg-blue-50/30 scale-105' : 'border-gray-50 bg-white hover:border-gray-200'}`}>
-                        <span className="text-xl">{FREQUENCY_ICONS[idx]}</span>
-                        <span className="text-[8px] font-black text-gray-500 uppercase leading-tight text-left">{label}</span>
+                      <button key={idx} onClick={() => updateActivePoi({ frequencyIndex: idx })} className={`flex items-center gap-3 p-4 sm:p-3 rounded-xl transition-all border-2 ${currentEditingPoi.frequencyIndex === idx ? 'border-blue-500 bg-blue-50/30 scale-105' : 'border-gray-50 bg-white hover:border-gray-200'}`}>
+                        <span className="text-3xl sm:text-2xl shrink-0">{FREQUENCY_ICONS[idx]}</span>
+                        <span className="text-sm sm:text-[10px] font-black text-gray-600 uppercase leading-tight text-left">{label}</span>
                       </button>
                     ))}
                   </div>
@@ -548,15 +563,6 @@ export default function App() {
             </div>
           </div>
         )}
-
-        {pendingMarkers.length > 0 && (
-          <div className="absolute bottom-6 md:bottom-10 left-1/2 -translate-x-1/2 z-[1000] flex items-center gap-3 bg-white/95 backdrop-blur-xl p-3 rounded-[2rem] shadow-2xl border border-white max-w-[95%]">
-            <div className="pl-6 pr-4 border-r border-gray-100 py-2 hidden sm:block"><span className="text-2xl font-black text-[#93132B]">{pendingMarkers.length}</span><span className="ml-2 text-xs font-bold text-gray-400 uppercase tracking-widest">{t.pendingCount}</span></div>
-            <button onClick={confirmSelection} disabled={isProcessing} className="bg-[#93132B] text-white px-8 py-3 rounded-2xl font-bold hover:bg-[#7a0f24] transition-all shadow-lg min-w-[140px] whitespace-nowrap">{isProcessing ? t.processing : t.confirmSelection}</button>
-            <button onClick={() => setPendingMarkers([])} className="px-6 py-3 rounded-2xl font-bold text-gray-500 hover:bg-gray-100">{t.clearSelection}</button>
-          </div>
-        )}
-      </div>
 
       {showTutorial && <Tutorial lang={lang} onClose={() => setShowTutorial(false)} />}
       

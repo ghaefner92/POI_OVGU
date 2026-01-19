@@ -2,7 +2,11 @@
 import { Language, TransportMode, Translations } from './types';
 import L from 'leaflet';
 
-export const MAGDEBURG_CENTER: [number, number] = [52.1307, 11.6250];
+// Security Origin for LimeSurvey Integration
+export const TARGET_ORIGIN = "https://imiq-panel.et.uni-magdeburg.de";
+
+// Centered on OVGU Campus / Science Port area
+export const MAGDEBURG_CENTER: [number, number] = [52.1396, 11.6456];
 export const BRAND_MAROON = "#93132B"; 
 
 export const SACHSEN_ANHALT_BOUNDS = L.latLngBounds(
