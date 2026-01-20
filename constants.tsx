@@ -83,6 +83,8 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     summaryPointLabel: "Point",
     modeMissing: "Mode not set",
     done: "Finish",
+    viewList: "My Locations",
+    close: "Close",
     modes: {
       [TransportMode.WALKING]: "Walking",
       [TransportMode.CYCLING]: "Cycling",
@@ -164,6 +166,8 @@ export const TRANSLATIONS: Record<Language, Translations> = {
     summaryPointLabel: "Punkt",
     modeMissing: "Modus fehlt",
     done: "Fertig",
+    viewList: "Meine Orte",
+    close: "Schließen",
     modes: {
       [TransportMode.WALKING]: "Zu Fuß",
       [TransportMode.CYCLING]: "Fahrrad",

@@ -68,6 +68,8 @@ export interface Translations {
   summaryPointLabel: string;
   modeMissing: string;
   done: string;
+  viewList: string; 
+  close: string;
   modes: Record<TransportMode, string>;
   frequencies: string[];
   tutorialNext: string;
